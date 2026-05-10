@@ -214,10 +214,23 @@ async function checkInactivity() {
       }).catch(() => null);
     }
 
-    // Log en canal de admins
+       // Log en canal de admins
     if (logsChannel?.isTextBased()) {
       await logsChannel.send({
         embeds: [
           new EmbedBuilder()
             .setColor(0xff0000)
-            .setTitle('🔴 Miembro Inactivo
+            .setTitle('🔴 Miembro Inactivo')
+            .setDescription(
+              `<@${userId}> lleva **${dias} días** sin conectarse a un canal de voz en **${config.guildName}**.`
+            )
+            .setThumbnail(config.logoUrl)
+            .setTimestamp()
+        ]
+      }).catch(() => null);
+    }
+  }
+
+  if (changed) writeJson(ACTIVITY_FILE, data);
+}
+                      
