@@ -1,3 +1,6 @@
+console.log('✅ BOT NUEVO EXLATAM V2 - CODIGO ACTUALIZADO 10 MAYO');
+console.log(`✅ Bot conectado como ${client.user.tag}`);
+
 const {
   Client,
   GatewayIntentBits,
