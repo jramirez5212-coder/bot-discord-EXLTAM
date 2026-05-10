@@ -7,6 +7,9 @@ const {
   ButtonStyle,
   ChannelType,
   PermissionFlagsBits,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
   EmbedBuilder
 } = require('discord.js');
 
@@ -33,12 +36,10 @@ const config = {
   guildId: '1469434046638461231',
 
   welcomeChannelId: '1469434029475496209',
-  transcriptChannelId: '1469434006331330561',
   activityChannelId: '1502906373846077582',
   inactivityLogsId: '1502906524001898537',
 
   trackedRoleId: '1469433888949665976',
-  inactiveDays: 7,
 
   logoUrl:
     'https://cdn.discordapp.com/attachments/1495181084248510555/1496961392316780544/ex1-removebg-preview.png?ex=6a00e170&is=69ff8ff0&hm=50f5e8ba4101bb15b3d05c648a5ad13ef57f8408b2cfad94431a2effe219bab6&',
@@ -72,14 +73,14 @@ const ticketTypes = {
     description:
       '⚠️ **Cuéntanos en qué te podemos ayudar.**\n\n' +
       '~ Usuario reportado:\n' +
-      '~ Motivo:\n' +
-      '~ Pruebas:\n' +
-      '~ Explicación completa:'
+      '~ Motivo del reporte:\n' +
+      '~ Pruebas / clips:\n' +
+      '~ Explicación completa de lo sucedido:'
   },
 
   compras: {
     label: 'Compras',
-    emoji: '🛍️',
+    emoji: '<:emoji_24:1486354461558308944>',
     categoryId: '1469433995371483320',
     roleId: '1481851324395163759',
     description:
@@ -100,7 +101,8 @@ const ticketTypes = {
       '~ Nombre del servidor:\n' +
       '~ Invitación:\n' +
       '~ Miembros:\n' +
-      '~ Qué ofrecen:'
+      '~ ¿Qué tipo de alianza quieres hacer?:\n' +
+      '~ ¿Qué puedes ofrecer como partner?:'
   }
 };
 
@@ -133,6 +135,7 @@ function formatTime(ms) {
 
 function formatDate(timestamp) {
   if (!timestamp) return 'Nunca';
+
   return new Date(timestamp).toLocaleString('es-CO', {
     hour12: true,
     day: '2-digit',
@@ -165,6 +168,48 @@ function cleanChannelName(text) {
     .slice(0, 80);
 }
 
+function getTicketTypeFromChannel(channel) {
+  if (!channel?.topic) return null;
+
+  const match = channel.topic.match(/ticketType:([a-zA-Z0-9_-]+)/);
+  if (!match) return null;
+
+  return match[1];
+}
+
+function canManageThisTicket(interaction) {
+  if (!interaction.member) return false;
+
+  if (interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+    return true;
+  }
+
+  const type = getTicketTypeFromChannel(interaction.channel);
+  if (!type) return false;
+
+  const ticket = ticketTypes[type];
+  if (!ticket) return false;
+
+  return interaction.member.roles.cache.has(ticket.roleId);
+}
+
+function buildRenameModal() {
+  const modal = new ModalBuilder()
+    .setCustomId('modal_rename_ticket')
+    .setTitle('Renombrar ticket');
+
+  const input = new TextInputBuilder()
+    .setCustomId('new_name')
+    .setLabel('Nuevo nombre del canal')
+    .setPlaceholder('Ejemplo: postulacion-juan')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(true);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(input));
+
+  return modal;
+}
+
 async function updateActivityEmbed() {
   const channel = await client.channels.fetch(config.activityChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
@@ -183,14 +228,14 @@ async function updateActivityEmbed() {
         const totalTime = (info.time || 0) + (info.joinedAt ? Date.now() - info.joinedAt : 0);
         const online = info.joinedAt ? '🟢 conectado ahora' : '⚫ desconectado';
 
-        const sessions = info.sessions || [];
-        const recentSessions = sessions
+        const recentSessions = (info.sessions || [])
           .slice(-3)
           .reverse()
           .map(s => {
             const entrada = formatDate(s.joinedAt);
             const salida = s.leftAt ? formatDate(s.leftAt) : 'Sigue conectado';
             const duracion = s.duration ? formatTime(s.duration) : 'En curso';
+
             return `   ↳ Entrada: ${entrada} | Salida: ${salida} | Tiempo: **${duracion}**`;
           })
           .join('\n');
@@ -244,9 +289,11 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 
   if (!oldState.channelId && newState.channelId) {
-    data[member.id].joinedAt = Date.now();
+    const now = Date.now();
+
+    data[member.id].joinedAt = now;
     data[member.id].sessions.push({
-      joinedAt: Date.now(),
+      joinedAt: now,
       leftAt: null,
       duration: null
     });
@@ -261,6 +308,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       data[member.id].joinedAt = null;
 
       const lastSession = data[member.id].sessions[data[member.id].sessions.length - 1];
+
       if (lastSession && !lastSession.leftAt) {
         lastSession.leftAt = now;
         lastSession.duration = duration;
@@ -374,106 +422,163 @@ client.on('messageCreate', async message => {
 });
 
 client.on('interactionCreate', async interaction => {
-  if (!interaction.isButton()) return;
+  try {
+    if (interaction.isModalSubmit()) {
+      if (interaction.customId === 'modal_rename_ticket') {
+        if (!canManageThisTicket(interaction)) {
+          return interaction.reply({
+            content: 'No tienes permisos para renombrar este ticket.',
+            ephemeral: true
+          });
+        }
 
-  if (interaction.customId === 'cerrar_ticket') {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+        const rawName = interaction.fields.getTextInputValue('new_name');
+        const newName = cleanChannelName(rawName);
+
+        if (!newName) {
+          return interaction.reply({
+            content: 'Nombre inválido.',
+            ephemeral: true
+          });
+        }
+
+        await interaction.channel.setName(newName);
+
+        return interaction.reply({
+          content: `✅ Canal renombrado a **${newName}**.`,
+          ephemeral: true
+        });
+      }
+
+      return;
+    }
+
+    if (!interaction.isButton()) return;
+
+    if (interaction.customId === 'cerrar_ticket') {
+      if (!canManageThisTicket(interaction)) {
+        return interaction.reply({
+          content: 'Solo el staff encargado de este ticket puede cerrarlo.',
+          ephemeral: true
+        });
+      }
+
+      await interaction.reply({
+        content: 'Cerrando ticket...',
+        ephemeral: true
+      });
+
+      setTimeout(() => {
+        interaction.channel.delete().catch(() => null);
+      }, 3000);
+
+      return;
+    }
+
+    if (interaction.customId === 'renombrar_ticket') {
+      if (!canManageThisTicket(interaction)) {
+        return interaction.reply({
+          content: 'Solo el staff encargado de este ticket puede renombrarlo.',
+          ephemeral: true
+        });
+      }
+
+      return interaction.showModal(buildRenameModal());
+    }
+
+    if (!interaction.customId.startsWith('ticket_')) return;
+
+    const type = interaction.customId.replace('ticket_', '');
+    const ticket = ticketTypes[type];
+
+    if (!ticket) return;
+
+    const existing = interaction.guild.channels.cache.find(
+      c => c.topic && c.topic.includes(`ticketOwner:${interaction.user.id}`) && c.topic.includes(`ticketType:${type}`)
+    );
+
+    if (existing) {
       return interaction.reply({
-        content: 'No tienes permisos para cerrar este ticket.',
+        content: `Ya tienes un ticket abierto: ${existing}`,
         ephemeral: true
       });
     }
 
+    const channel = await interaction.guild.channels.create({
+      name: `${type}-${cleanChannelName(interaction.user.username)}`,
+      type: ChannelType.GuildText,
+      parent: ticket.categoryId,
+      topic: `ticketOwner:${interaction.user.id} | ticketType:${type}`,
+      permissionOverwrites: [
+        {
+          id: interaction.guild.roles.everyone.id,
+          deny: [PermissionFlagsBits.ViewChannel]
+        },
+        {
+          id: interaction.user.id,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.EmbedLinks
+          ]
+        },
+        {
+          id: ticket.roleId,
+          allow: [
+            PermissionFlagsBits.ViewChannel,
+            PermissionFlagsBits.SendMessages,
+            PermissionFlagsBits.ReadMessageHistory,
+            PermissionFlagsBits.ManageMessages,
+            PermissionFlagsBits.AttachFiles,
+            PermissionFlagsBits.EmbedLinks
+          ]
+        }
+      ]
+    });
+
+    const embed = new EmbedBuilder()
+      .setColor(EMBED_COLOR)
+      .setTitle(`${ticket.emoji} ${ticket.label}`)
+      .setDescription(ticket.description)
+      .setThumbnail(config.logoUrl)
+      .setFooter({
+        text: config.guildName
+      });
+
+    const buttons = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('cerrar_ticket')
+        .setLabel('Cerrar')
+        .setStyle(ButtonStyle.Danger),
+
+      new ButtonBuilder()
+        .setCustomId('renombrar_ticket')
+        .setLabel('Renombrar')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    await channel.send({
+      content: `<@${interaction.user.id}> Has abierto un ticket de (${ticket.emoji} **${ticket.label}**). Espera que un <@&${ticket.roleId}> te atienda.`,
+      embeds: [embed],
+      components: [buttons]
+    });
+
     await interaction.reply({
-      content: 'Cerrando ticket...',
+      content: `✅ Ticket creado en ${channel}`,
       ephemeral: true
     });
+  } catch (error) {
+    console.error(error);
 
-    setTimeout(() => {
-      interaction.channel.delete().catch(() => null);
-    }, 3000);
-
-    return;
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: 'Ocurrió un error ejecutando esta acción.',
+        ephemeral: true
+      }).catch(() => null);
+    }
   }
-
-  if (!interaction.customId.startsWith('ticket_')) return;
-
-  const type = interaction.customId.replace('ticket_', '');
-  const ticket = ticketTypes[type];
-
-  if (!ticket) return;
-
-  const existing = interaction.guild.channels.cache.find(
-    c => c.topic && c.topic.includes(interaction.user.id) && c.topic.includes(type)
-  );
-
-  if (existing) {
-    return interaction.reply({
-      content: `Ya tienes un ticket abierto: ${existing}`,
-      ephemeral: true
-    });
-  }
-
-  const channel = await interaction.guild.channels.create({
-    name: `${type}-${cleanChannelName(interaction.user.username)}`,
-    type: ChannelType.GuildText,
-    parent: ticket.categoryId,
-    topic: `${interaction.user.id}-${type}`,
-    permissionOverwrites: [
-      {
-        id: interaction.guild.roles.everyone.id,
-        deny: [PermissionFlagsBits.ViewChannel]
-      },
-      {
-        id: interaction.user.id,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.AttachFiles,
-          PermissionFlagsBits.EmbedLinks
-        ]
-      },
-      {
-        id: ticket.roleId,
-        allow: [
-          PermissionFlagsBits.ViewChannel,
-          PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory,
-          PermissionFlagsBits.ManageMessages,
-          PermissionFlagsBits.AttachFiles,
-          PermissionFlagsBits.EmbedLinks
-        ]
-      }
-    ]
-  });
-
-  const embed = new EmbedBuilder()
-    .setColor(EMBED_COLOR)
-    .setTitle(`${ticket.emoji} ${ticket.label}`)
-    .setDescription(ticket.description)
-    .setThumbnail(config.logoUrl)
-    .setFooter({
-      text: config.guildName
-    });
-
-  const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('cerrar_ticket')
-      .setLabel('Cerrar')
-      .setStyle(ButtonStyle.Danger)
-  );
-
-  await channel.send({
-    content: `<@${interaction.user.id}> Has abierto un ticket de (${ticket.emoji} **${ticket.label}**). Espera que un <@&${ticket.roleId}> te atienda.`,
-    embeds: [embed],
-    components: [buttons]
-  });
-
-  await interaction.reply({
-    content: `✅ Ticket creado en ${channel}`,
-    ephemeral: true
-  });
 });
 
 client.login(TOKEN);
