@@ -1,3 +1,14 @@
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.MessageContent
+  ],
+  partials: [Partials.Channel]
+});
+
 const {
   Client,
   GatewayIntentBits,
