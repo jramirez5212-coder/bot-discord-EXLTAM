@@ -20,11 +20,11 @@ const path = require('path');
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 
-const GUILD_ID = '1469434046638461231';
-const EMBED_COLOR = 0x00ff3c;
-
 if (!TOKEN) throw new Error('Falta TOKEN en Railway');
 if (!CLIENT_ID) throw new Error('Falta CLIENT_ID en Railway');
+
+const GUILD_ID = '1469434046638461231';
+const EMBED_COLOR = 0x00ff3c;
 
 const client = new Client({
   intents: [
@@ -47,7 +47,7 @@ const config = {
   inactivityLogsId: '1502906524001898537',
   inactiveDays: 7,
 
-  bannerWelcomeChannelId: '1469434029475496209',
+  welcomeChannelId: '1469434029475496209',
   transcriptChannelId: '1469434006331330561',
 
   logoUrl: 'https://cdn.discordapp.com/attachments/1495181084248510555/1496961392316780544/ex1-removebg-preview.png?ex=6a00e170&is=69ff8ff0&hm=50f5e8ba4101bb15b3d05c648a5ad13ef57f8408b2cfad94431a2effe219bab6&',
@@ -159,19 +159,60 @@ function isTracked(member) {
   return config.trackedRoleIds.some(id => member.roles.cache.has(id));
 }
 
-function recordVoiceActivity(userId) {
+function formatDate(timestamp) {
+  if (!timestamp) return 'Nunca';
+  return new Date(timestamp).toLocaleString('es-CO', { hour12: true });
+}
+
+function formatDuration(ms) {
+  if (!ms || ms <= 0) return '0m';
+
+  const totalMinutes = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+function daysSince(timestamp) {
+  if (!timestamp) return Infinity;
+  return Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24));
+}
+
+function startVoiceSession(userId) {
   const data = readJson(ACTIVITY_FILE, {});
 
   if (!data[userId]) {
     data[userId] = {
-      entries: 0,
+      totalTime: 0,
+      sessions: 0,
+      joinedAt: null,
       lastSeen: null,
       warned: false
     };
   }
 
-  data[userId].entries += 1;
-  data[userId].lastSeen = Date.now();
+  if (!data[userId].joinedAt) {
+    data[userId].joinedAt = Date.now();
+    data[userId].sessions += 1;
+  }
+
+  data[userId].warned = false;
+  writeJson(ACTIVITY_FILE, data);
+}
+
+function endVoiceSession(userId) {
+  const data = readJson(ACTIVITY_FILE, {});
+
+  if (!data[userId] || !data[userId].joinedAt) return;
+
+  const now = Date.now();
+  const timeInCall = now - data[userId].joinedAt;
+
+  data[userId].totalTime += timeInCall;
+  data[userId].joinedAt = null;
+  data[userId].lastSeen = now;
   data[userId].warned = false;
 
   writeJson(ACTIVITY_FILE, data);
@@ -181,18 +222,16 @@ function getSortedActivity() {
   const data = readJson(ACTIVITY_FILE, {});
 
   return Object.entries(data)
-    .map(([userId, d]) => ({ userId, ...d }))
-    .sort((a, b) => (b.entries || 0) - (a.entries || 0));
-}
+    .map(([userId, d]) => {
+      const currentTime = d.joinedAt ? Date.now() - d.joinedAt : 0;
 
-function daysSince(timestamp) {
-  if (!timestamp) return Infinity;
-  return Math.floor((Date.now() - timestamp) / (1000 * 60 * 60 * 24));
-}
-
-function formatDate(timestamp) {
-  if (!timestamp) return 'Nunca';
-  return new Date(timestamp).toLocaleString('es-CO', { hour12: true });
+      return {
+        userId,
+        ...d,
+        displayTime: (d.totalTime || 0) + currentTime
+      };
+    })
+    .sort((a, b) => (b.displayTime || 0) - (a.displayTime || 0));
 }
 
 function buildActivityEmbed() {
@@ -200,9 +239,10 @@ function buildActivityEmbed() {
 
   const lines = list.map((entry, i) => {
     const dias = daysSince(entry.lastSeen);
-    const estado = dias >= config.inactiveDays ? '🔴' : dias >= 3 ? '🟡' : '🟢';
+    const estado = entry.joinedAt ? '🟢' : dias >= config.inactiveDays ? '🔴' : dias >= 3 ? '🟡' : '⚫';
+    const conectado = entry.joinedAt ? 'conectado ahora' : 'desconectado';
 
-    return `${estado} **${i + 1}.** <@${entry.userId}> — **${entry.entries}** entrada(s) a voz/radio — última: ${formatDate(entry.lastSeen)}`;
+    return `${estado} **${i + 1}.** <@${entry.userId}> — **${formatDuration(entry.displayTime)}** en voz/radio — ${conectado} — última salida: ${formatDate(entry.lastSeen)}`;
   });
 
   return new EmbedBuilder()
@@ -211,7 +251,7 @@ function buildActivityEmbed() {
     .setDescription(lines.length ? lines.join('\n') : 'Sin registros de actividad aún.')
     .setThumbnail(config.logoUrl)
     .setFooter({
-      text: `${config.guildName} • 🟢 Activo  🟡 +3 días  🔴 Inactivo (+7 días)`
+      text: `${config.guildName} • 🟢 conectado  🟡 +3 días  🔴 inactivo +7 días`
     })
     .setTimestamp();
 }
@@ -245,6 +285,7 @@ async function checkInactivity() {
 
   for (const [userId, entry] of Object.entries(data)) {
     if (entry.warned) continue;
+    if (entry.joinedAt) continue;
     if (daysSince(entry.lastSeen) < config.inactiveDays) continue;
 
     data[userId].warned = true;
@@ -637,7 +678,7 @@ client.once('ready', async () => {
 });
 
 client.on('guildMemberAdd', async member => {
-  const channel = await member.guild.channels.fetch(config.bannerWelcomeChannelId).catch(() => null);
+  const channel = await member.guild.channels.fetch(config.welcomeChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
 
   const embed = new EmbedBuilder()
@@ -666,7 +707,18 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   const after = newState.channelId;
 
   if (!before && after) {
-    recordVoiceActivity(member.id);
+    startVoiceSession(member.id);
+    await updateActivityEmbed();
+    return;
+  }
+
+  if (before && !after) {
+    endVoiceSession(member.id);
+    await updateActivityEmbed();
+    return;
+  }
+
+  if (before && after && before !== after) {
     await updateActivityEmbed();
   }
 });
