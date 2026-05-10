@@ -17,19 +17,15 @@ const {
 const fs = require('fs');
 const path = require('path');
 
-// ─────────────────────────────────────────
-// ENV
-// ─────────────────────────────────────────
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
+
 const GUILD_ID = '1469434046638461231';
+const EMBED_COLOR = 0x00ff3c;
 
 if (!TOKEN) throw new Error('Falta TOKEN en Railway');
 if (!CLIENT_ID) throw new Error('Falta CLIENT_ID en Railway');
 
-// ─────────────────────────────────────────
-// CLIENT
-// ─────────────────────────────────────────
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -42,11 +38,6 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-// ─────────────────────────────────────────
-// CONFIG
-// ─────────────────────────────────────────
-const EMBED_COLOR = 0x00ff3c;
-
 const config = {
   guildName: 'EXLATAM / #300K?',
 
@@ -57,16 +48,12 @@ const config = {
   inactiveDays: 7,
 
   bannerWelcomeChannelId: '1469434029475496209',
-
   transcriptChannelId: '1469434006331330561',
 
   logoUrl: 'https://cdn.discordapp.com/attachments/1495181084248510555/1496961392316780544/ex1-removebg-preview.png?ex=6a00e170&is=69ff8ff0&hm=50f5e8ba4101bb15b3d05c648a5ad13ef57f8408b2cfad94431a2effe219bab6&',
   bannerUrl: 'https://cdn.discordapp.com/attachments/1495181084248510555/1495181776614588426/bannerdc1.png?ex=6a00ff8a&is=69ffae0a&hm=f54d7a23160bfc30fdd22e438104f200f5e8cc1970985179fba540aae6af1904&'
 };
 
-// ─────────────────────────────────────────
-// TICKETS
-// ─────────────────────────────────────────
 const ticketTypes = {
   postulaciones: {
     name: 'postulaciones',
@@ -78,10 +65,10 @@ const ticketTypes = {
     description:
       '<:emoji_16:1486354271351078923>  *Si estás interesado en postular __rellena la siguiente información:__*\n' +
       '~ Nombre:\n' +
-      '~ Edad (**mínimo 15**):\n' +
+      '~ Edad (**minimo 15**):\n' +
       '~ 5 Clips o 1HG:\n' +
       '~ Foto de las horas de FiveM:\n' +
-      '~ Foto KD (**mínimo 1.8**):\n' +
+      '~ Foto KD (**minimo 1.8**):\n' +
       '~ Link Steam Público:\n' +
       '~ Tiempo Disponible?:'
   },
@@ -98,7 +85,7 @@ const ticketTypes = {
       '~ Usuario reportado:\n' +
       '~ Motivo del reporte:\n' +
       '~ Pruebas / clips:\n' +
-      '~ Explicación de lo sucedido:'
+      '~ Explicación completa de lo sucedido:'
   },
 
   compras: {
@@ -127,16 +114,13 @@ const ticketTypes = {
     description:
       '⚠️ **Solicitud de partner**\n\n' +
       '~ Nombre del servidor / comunidad:\n' +
-      '~ Link o invitación:\n' +
+      '~ Link del servidor:\n' +
       '~ Cantidad de miembros:\n' +
       '~ ¿Qué tipo de alianza quieres hacer?:\n' +
       '~ ¿Qué puedes ofrecer como partner?:'
   }
 };
 
-// ─────────────────────────────────────────
-// ARCHIVOS JSON
-// ─────────────────────────────────────────
 const ACTIVITY_FILE = path.join(__dirname, 'activity.json');
 const ACTIVITY_MSG = path.join(__dirname, 'activity_message.json');
 const CLAIMS_FILE = path.join(__dirname, 'claims.json');
@@ -171,9 +155,6 @@ function sanitizeChannelName(name) {
     .slice(0, 90);
 }
 
-// ─────────────────────────────────────────
-// ACTIVIDAD
-// ─────────────────────────────────────────
 function isTracked(member) {
   return config.trackedRoleIds.some(id => member.roles.cache.has(id));
 }
@@ -244,7 +225,6 @@ async function updateActivityEmbed() {
 
   if (db.messageId) {
     const oldMsg = await channel.messages.fetch(db.messageId).catch(() => null);
-
     if (oldMsg) {
       await oldMsg.edit({ embeds: [embed] });
       return;
@@ -307,9 +287,6 @@ async function checkInactivity() {
   if (changed) writeJson(ACTIVITY_FILE, data);
 }
 
-// ─────────────────────────────────────────
-// CLAIMS / ASUMIR TICKETS
-// ─────────────────────────────────────────
 function incrementClaim(user) {
   const claims = readJson(CLAIMS_FILE, {});
 
@@ -356,11 +333,12 @@ function buildTicketPanel() {
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
     .setDescription(
-      `Te damos la bienvenida a 🐉 **${config.guildName}**,\n` +
-      `si quieres postular acá lo puedes hacer: <#${config.transcriptChannelId}>`
+      `*Te damos la bienvenida a* 🐉 **${config.guildName}**,\n` +
+      `*si quieres postular acá lo puedes hacer:* 🎫`
     )
     .setThumbnail(config.logoUrl)
-    .setImage(config.bannerUrl);
+    .setImage(config.bannerUrl)
+    .setFooter({ text: 'TICKETS' });
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -644,9 +622,6 @@ function buildRenameModal() {
   return modal;
 }
 
-// ─────────────────────────────────────────
-// READY
-// ─────────────────────────────────────────
 client.once('ready', async () => {
   console.log(`✅ Bot conectado como ${client.user.tag}`);
 
@@ -661,9 +636,6 @@ client.once('ready', async () => {
   setInterval(checkInactivity, 60 * 60 * 1000);
 });
 
-// ─────────────────────────────────────────
-// BIENVENIDA
-// ─────────────────────────────────────────
 client.on('guildMemberAdd', async member => {
   const channel = await member.guild.channels.fetch(config.bannerWelcomeChannelId).catch(() => null);
   if (!channel?.isTextBased()) return;
@@ -671,21 +643,19 @@ client.on('guildMemberAdd', async member => {
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
     .setDescription(
-      `Te damos la bienvenida a 🐉 **${config.guildName}**,\n` +
-      `si quieres postular acá lo puedes hacer: <#${config.transcriptChannelId}>`
+      `*Te damos la bienvenida a* 🐉 **${config.guildName}**,\n` +
+      `*si quieres postular acá lo puedes hacer:* <#1469434046638461231>`
     )
-    .setThumbnail(config.logoUrl)
-    .setImage(config.bannerUrl);
+    .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+    .setImage(config.bannerUrl)
+    .setFooter({ text: 'TICKETS' });
 
   await channel.send({
-    content: `${member}`,
+    content: `${member} **Bienvenido a** __${config.guildName}__ 🚙`,
     embeds: [embed]
   });
 });
 
-// ─────────────────────────────────────────
-// ACTIVIDAD VOZ/RADIO
-// ─────────────────────────────────────────
 client.on('voiceStateUpdate', async (oldState, newState) => {
   const member = newState.member || oldState.member;
   if (!member || member.user.bot) return;
@@ -701,9 +671,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   }
 });
 
-// ─────────────────────────────────────────
-// INTERACCIONES
-// ─────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
   try {
     if (interaction.isButton()) {
@@ -811,9 +778,6 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// ─────────────────────────────────────────
-// COMANDOS CON PREFIJO
-// ─────────────────────────────────────────
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
 
@@ -838,14 +802,10 @@ client.on('messageCreate', async message => {
 
     writeJson(ACTIVITY_FILE, {});
     writeJson(ACTIVITY_MSG, {});
-
     await updateActivityEmbed();
 
     return message.reply('✅ Actividad reiniciada correctamente.');
   }
 });
 
-// ─────────────────────────────────────────
-// LOGIN
-// ─────────────────────────────────────────
 client.login(TOKEN);
