@@ -7,19 +7,13 @@ const {
   ButtonStyle,
   ChannelType,
   PermissionFlagsBits,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   EmbedBuilder
 } = require('discord.js');
 
 const fs = require('fs');
 
 const TOKEN = process.env.TOKEN;
-
-if (!TOKEN) {
-  throw new Error('Falta TOKEN en Railway');
-}
+if (!TOKEN) throw new Error('Falta TOKEN en Railway');
 
 const client = new Client({
   intents: [
@@ -36,17 +30,14 @@ const EMBED_COLOR = 0x00ff3c;
 
 const config = {
   guildName: 'EXLATAM / #300K?',
+  guildId: '1469434046638461231',
 
   welcomeChannelId: '1469434029475496209',
-
   transcriptChannelId: '1469434006331330561',
-
   activityChannelId: '1502906373846077582',
-
   inactivityLogsId: '1502906524001898537',
 
   trackedRoleId: '1469433888949665976',
-
   inactiveDays: 7,
 
   logoUrl:
@@ -120,7 +111,11 @@ if (!fs.existsSync(activityFile)) {
 }
 
 function loadActivity() {
-  return JSON.parse(fs.readFileSync(activityFile));
+  try {
+    return JSON.parse(fs.readFileSync(activityFile, 'utf8'));
+  } catch {
+    return {};
+  }
 }
 
 function saveActivity(data) {
@@ -129,64 +124,99 @@ function saveActivity(data) {
 
 function formatTime(ms) {
   const totalMinutes = Math.floor(ms / 60000);
-
   const hours = Math.floor(totalMinutes / 60);
-
   const minutes = totalMinutes % 60;
 
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-
+  if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
+}
+
+function formatDate(timestamp) {
+  if (!timestamp) return 'Nunca';
+  return new Date(timestamp).toLocaleString('es-CO', {
+    hour12: true,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
+function todayFooter(memberCount) {
+  const now = new Date();
+  const time = now.toLocaleTimeString('es-CO', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  return `Ahora somos ${memberCount} miembros • hoy a las ${time}`;
+}
+
+function cleanChannelName(text) {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80);
 }
 
 async function updateActivityEmbed() {
   const channel = await client.channels.fetch(config.activityChannelId).catch(() => null);
-
-  if (!channel) return;
+  if (!channel?.isTextBased()) return;
 
   const data = loadActivity();
 
-  const sorted = Object.entries(data).sort(
-    (a, b) => (b[1].time || 0) - (a[1].time || 0)
-  );
+  const sorted = Object.entries(data).sort((a, b) => {
+    const aTime = (a[1].time || 0) + (a[1].joinedAt ? Date.now() - a[1].joinedAt : 0);
+    const bTime = (b[1].time || 0) + (b[1].joinedAt ? Date.now() - b[1].joinedAt : 0);
+    return bTime - aTime;
+  });
 
   const description =
     sorted
-      .map((x, i) => {
-        const userId = x[0];
-        const info = x[1];
+      .map(([userId, info], i) => {
+        const totalTime = (info.time || 0) + (info.joinedAt ? Date.now() - info.joinedAt : 0);
+        const online = info.joinedAt ? '🟢 conectado ahora' : '⚫ desconectado';
 
-        const online = info.joinedAt ? '🟢 conectado' : '⚫ desconectado';
+        const sessions = info.sessions || [];
+        const recentSessions = sessions
+          .slice(-3)
+          .reverse()
+          .map(s => {
+            const entrada = formatDate(s.joinedAt);
+            const salida = s.leftAt ? formatDate(s.leftAt) : 'Sigue conectado';
+            const duracion = s.duration ? formatTime(s.duration) : 'En curso';
+            return `   ↳ Entrada: ${entrada} | Salida: ${salida} | Tiempo: **${duracion}**`;
+          })
+          .join('\n');
 
-        return `**${i + 1}.** <@${userId}> • ${formatTime(
-          info.time || 0
-        )} • ${online}`;
+        return (
+          `**${i + 1}.** <@${userId}> — Total: **${formatTime(totalTime)}** — ${online}\n` +
+          (recentSessions || '   ↳ Sin sesiones registradas todavía')
+        );
       })
-      .join('\n') || 'Sin actividad';
+      .join('\n\n') || 'Sin actividad registrada.';
 
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
-    .setTitle('📊 Actividad de Miembros — Voz')
+    .setTitle('📊 Actividad de Miembros — Voz / Radio')
     .setDescription(description)
     .setThumbnail(config.logoUrl)
-    .setFooter({
-      text: `${config.guildName}`
-    });
+    .setFooter({ text: `${config.guildName} • Actividad por horas de entrada y salida` })
+    .setTimestamp();
 
-  const messages = await channel.messages.fetch({ limit: 10 });
-
-  const existing = messages.find(m => m.author.id === client.user.id);
+  const messages = await channel.messages.fetch({ limit: 10 }).catch(() => null);
+  const existing = messages?.find(m => m.author.id === client.user.id);
 
   if (existing) {
-    await existing.edit({
-      embeds: [embed]
-    });
+    await existing.edit({ embeds: [embed] });
   } else {
-    await channel.send({
-      embeds: [embed]
-    });
+    await channel.send({ embeds: [embed] });
   }
 }
 
@@ -194,16 +224,13 @@ client.once('clientReady', async () => {
   console.log('✅ BOT NUEVO EXLATAM V2');
   console.log(`✅ Conectado como ${client.user.tag}`);
 
-  updateActivityEmbed();
-
+  await updateActivityEmbed();
   setInterval(updateActivityEmbed, 30000);
 });
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
   const member = newState.member || oldState.member;
-
-  if (!member) return;
-
+  if (!member || member.user.bot) return;
   if (!member.roles.cache.has(config.trackedRoleId)) return;
 
   const data = loadActivity();
@@ -211,43 +238,54 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   if (!data[member.id]) {
     data[member.id] = {
       time: 0,
-      joinedAt: null
+      joinedAt: null,
+      sessions: []
     };
   }
 
   if (!oldState.channelId && newState.channelId) {
     data[member.id].joinedAt = Date.now();
+    data[member.id].sessions.push({
+      joinedAt: Date.now(),
+      leftAt: null,
+      duration: null
+    });
   }
 
   if (oldState.channelId && !newState.channelId) {
     if (data[member.id].joinedAt) {
-      data[member.id].time += Date.now() - data[member.id].joinedAt;
+      const now = Date.now();
+      const duration = now - data[member.id].joinedAt;
+
+      data[member.id].time += duration;
       data[member.id].joinedAt = null;
+
+      const lastSession = data[member.id].sessions[data[member.id].sessions.length - 1];
+      if (lastSession && !lastSession.leftAt) {
+        lastSession.leftAt = now;
+        lastSession.duration = duration;
+      }
     }
   }
 
   saveActivity(data);
-
-  updateActivityEmbed();
+  await updateActivityEmbed();
 });
 
 client.on('guildMemberAdd', async member => {
-  const channel = await member.guild.channels
-    .fetch(config.welcomeChannelId)
-    .catch(() => null);
-
-  if (!channel) return;
+  const channel = await member.guild.channels.fetch(config.welcomeChannelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
 
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
     .setDescription(
       `*Te damos la bienvenida a* 🐉 **${config.guildName}**,\n` +
-        `*si quieres postular acá lo puedes hacer:* <#1469434046638461231>`
+      `*si quieres postular acá lo puedes hacer:* <#1469434046638461231>`
     )
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
     .setImage(config.bannerUrl)
     .setFooter({
-      text: 'TICKETS'
+      text: todayFooter(member.guild.memberCount)
     });
 
   await channel.send({
@@ -259,9 +297,15 @@ client.on('guildMemberAdd', async member => {
 function ticketPanel() {
   const embed = new EmbedBuilder()
     .setColor(EMBED_COLOR)
+    .setTitle('<:emoji_16:1486354271351078923> SISTEMA TICKETS EXLATAM')
     .setDescription(
-      `*Te damos la bienvenida a* 🐉 **${config.guildName}**,\n` +
-        `*si quieres postular acá lo puedes hacer:* <#1469434046638461231>`
+      '<:emoji_13:1485010590358568970>  *Si deseas abrir algun ticket lo puedes hacer presionando los botones de abajo:*\n\n' +
+      '```INFORMACION IMPORTANTE```\n' +
+      '<:emoji_6:1485010432514326558> __Postulaciones:__ Ser parte de las bandas de la comunidad.\n' +
+      '<:emoji_6:1485010432514326558> __Reportes:__ Reportar alguna inconformidad.\n' +
+      '<:emoji_6:1485010432514326558> __Compras:__ Compras en nuestra tienda.\n' +
+      '<:emoji_6:1485010432514326558> __Partners:__ Alianzas entre discord (PUBLICIDAD).\n\n' +
+      '👇 **¡SI ESTAS INTERESADO EN POSTULAR PRESIONA EL BOTON CORRESPONDIENTE!** 👇'
     )
     .setThumbnail(config.logoUrl)
     .setImage(config.bannerUrl)
@@ -306,31 +350,61 @@ client.on('messageCreate', async message => {
 
   if (message.content === '!paneltickets') {
     if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
-      return;
+      return message.reply('No tienes permisos.');
     }
 
     await message.channel.send(ticketPanel());
+    return message.reply('✅ Panel enviado.');
+  }
 
-    await message.reply('✅ Panel enviado');
+  if (message.content === '!ranking') {
+    await updateActivityEmbed();
+    return message.reply('✅ Ranking actualizado.');
+  }
+
+  if (message.content === '!resetactividad') {
+    if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) {
+      return message.reply('No tienes permisos.');
+    }
+
+    saveActivity({});
+    await updateActivityEmbed();
+    return message.reply('✅ Actividad reiniciada.');
   }
 });
 
 client.on('interactionCreate', async interaction => {
   if (!interaction.isButton()) return;
 
+  if (interaction.customId === 'cerrar_ticket') {
+    if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return interaction.reply({
+        content: 'No tienes permisos para cerrar este ticket.',
+        ephemeral: true
+      });
+    }
+
+    await interaction.reply({
+      content: 'Cerrando ticket...',
+      ephemeral: true
+    });
+
+    setTimeout(() => {
+      interaction.channel.delete().catch(() => null);
+    }, 3000);
+
+    return;
+  }
+
   if (!interaction.customId.startsWith('ticket_')) return;
 
   const type = interaction.customId.replace('ticket_', '');
-
   const ticket = ticketTypes[type];
 
   if (!ticket) return;
 
   const existing = interaction.guild.channels.cache.find(
-    c =>
-      c.topic &&
-      c.topic.includes(interaction.user.id) &&
-      c.topic.includes(type)
+    c => c.topic && c.topic.includes(interaction.user.id) && c.topic.includes(type)
   );
 
   if (existing) {
@@ -341,33 +415,34 @@ client.on('interactionCreate', async interaction => {
   }
 
   const channel = await interaction.guild.channels.create({
-    name: `${type}-${interaction.user.username}`.toLowerCase(),
+    name: `${type}-${cleanChannelName(interaction.user.username)}`,
     type: ChannelType.GuildText,
     parent: ticket.categoryId,
-
     topic: `${interaction.user.id}-${type}`,
-
     permissionOverwrites: [
       {
         id: interaction.guild.roles.everyone.id,
         deny: [PermissionFlagsBits.ViewChannel]
       },
-
       {
         id: interaction.user.id,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks
         ]
       },
-
       {
         id: ticket.roleId,
         allow: [
           PermissionFlagsBits.ViewChannel,
           PermissionFlagsBits.SendMessages,
-          PermissionFlagsBits.ReadMessageHistory
+          PermissionFlagsBits.ReadMessageHistory,
+          PermissionFlagsBits.ManageMessages,
+          PermissionFlagsBits.AttachFiles,
+          PermissionFlagsBits.EmbedLinks
         ]
       }
     ]
@@ -386,12 +461,7 @@ client.on('interactionCreate', async interaction => {
     new ButtonBuilder()
       .setCustomId('cerrar_ticket')
       .setLabel('Cerrar')
-      .setStyle(ButtonStyle.Danger),
-
-    new ButtonBuilder()
-      .setCustomId('renombrar_ticket')
-      .setLabel('Renombrar')
-      .setStyle(ButtonStyle.Primary)
+      .setStyle(ButtonStyle.Danger)
   );
 
   await channel.send({
