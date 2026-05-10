@@ -1,6 +1,6 @@
-console.log('✅ BOT NUEVO EXLATAM V2 - CODIGO ACTUALIZADO 10 MAYO');
-console.log(`✅ Bot conectado como ${client.user.tag}`);
+Pega esto reemplazando **TODO** tu `index.js`:
 
+```js
 const {
   Client,
   GatewayIntentBits,
@@ -666,7 +666,8 @@ function buildRenameModal() {
   return modal;
 }
 
-client.once('ready', async () => {
+client.once('clientReady', async () => {
+  console.log('✅ BOT NUEVO EXLATAM V2 - CÓDIGO ACTUALIZADO');
   console.log(`✅ Bot conectado como ${client.user.tag}`);
 
   ensureFile(ACTIVITY_FILE, {});
@@ -864,3 +865,13 @@ client.on('messageCreate', async message => {
 });
 
 client.login(TOKEN);
+```
+
+Después de pegarlo:
+
+```txt
+Commit changes
+Railway redeploy
+Borra los paneles viejos
+Escribe !paneltickets otra vez
+```
