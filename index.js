@@ -233,4 +233,8 @@ async function checkInactivity() {
 
   if (changed) writeJson(ACTIVITY_FILE, data);
 }
-                      
+                      client.once('ready', () => {
+  console.log(`✅ Bot conectado como ${client.user.tag}`);
+});
+
+client.login(TOKEN);
