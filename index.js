@@ -57,6 +57,7 @@ const ticketTypes = {
     description:
       '<:emoji_16:1486354271351078923>  *Si estás interesado en postular __rellena la siguiente información:__*\n\n' +
       '~ Nombre:\n' +
+        '~ Residencia/Pais?:\n' +
       '~ Edad (**minimo 15**):\n' +
       '~ 5 Clips o 1HG:\n' +
       '~ Foto de las horas de FiveM:\n' +
