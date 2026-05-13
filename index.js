@@ -34,7 +34,7 @@ const COLOR = EMBED_COLOR;
 
 const config = {
   guildName: 'EXLATAM / #300K?',
-  guildId: '1469434046638461231',
+  guildId: '1455775938200473606',
 
   welcomeChannelId: '1469434029475496209',
 
