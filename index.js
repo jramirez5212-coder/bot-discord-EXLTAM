@@ -49,23 +49,6 @@ const config = {
 };
 
 const ticketTypes = {
-  postulaciones: {
-    label: 'Postulaciones',
-    emoji: '🌀',
-    categoryId: '1469433993911865556',
-    roleId: '1469433858352222379',
-    description:
-      '<:emoji_16:1486354271351078923>  *Si estás interesado en postular __rellena la siguiente información:__*\n\n' +
-      '~ Nombre:\n' +
-        '~ Residencia/Pais?:\n' +
-      '~ Edad (**minimo 15**):\n' +
-      '~ 5 Clips o 1HG:\n' +
-      '~ Foto de las horas de FiveM:\n' +
-      '~ Foto KD (**minimo 1.8**):\n' +
-      '~ Link Steam Público:\n' +
-      '~ Tiempo Disponible?:'
-  },
-
   reportes: {
     label: 'Reportes',
     emoji: '⛔',
@@ -363,11 +346,6 @@ function ticketPanel() {
     });
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('ticket_postulaciones')
-      .setLabel('Postulaciones')
-      .setEmoji('🌀')
-      .setStyle(ButtonStyle.Success),
 
     new ButtonBuilder()
       .setCustomId('ticket_reportes')
