@@ -17,7 +17,7 @@ module.exports = {
 
   // ── IMÁGENES ──────────────────────────────────────────────────
   LOGO_URL:           "https://cdn.discordapp.com/attachments/1469434027671814228/1504707145432699010/logo_ex.png",
-  BANNER_INACTIVIDAD: "https://cdn.discordapp.com/attachments/1495181084248510555/1496964414467866806/image.png?ex=6a077bc0&is=6a062a40&hm=aec5dd7caff0ca14d52b009d156b1ba9ee384f64cf08b834ba85fdd7e0280e14&",
+  BANNER_INACTIVIDAD: "https://cdn.discordapp.com/attachments/1469434027671814228/1504719177435451473/a5ee8e33-074b-4547-ae9e-9ac3101349c7.png",
 
   // ── SETTINGS ──────────────────────────────────────────────────
   TOP_SIZE:           5,
