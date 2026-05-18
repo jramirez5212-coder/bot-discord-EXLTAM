@@ -211,7 +211,8 @@ async function createResultTicket(userId, status, staffUser) {
       permissionOverwrites: [
         {id:guild.roles.everyone.id, deny:[PermissionFlagsBits.ViewChannel]},
         {id:userId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},
-        {id:config.staffBandasRoleId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.ManageChannels,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]}
+        {id:config.staffBandasRoleId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.ManageChannels,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},
+        {id:"1469433858352222379", allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]}
       ]
     });
 
@@ -353,9 +354,12 @@ client.on("interactionCreate", async interaction => {
     if (!interaction.isButton()) return;
 
     // Botón solicitar SS
+    const ENTREVISTADOR_ROLE_ID = "1469433858352222379";
+    const canSolicitar = i => canStaff(i) || i.member?.roles?.cache?.has(ENTREVISTADOR_ROLE_ID);
+
     if (interaction.customId === "solicitar_ss") {
-      if (!canStaff(interaction))
-        return interaction.reply({content:"❌ Solo el staff puede solicitar un encargado de SS.",ephemeral:true});
+      if (!canSolicitar(interaction))
+        return interaction.reply({content:"❌ No tienes permiso para solicitar un encargado de SS.",ephemeral:true});
       try {
         await interaction.channel.permissionOverwrites.edit(SS_ROLE_ID, {
           ViewChannel:true, SendMessages:true, ReadMessageHistory:true,
