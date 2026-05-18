@@ -2,20 +2,28 @@ const {
   EmbedBuilder, ModalBuilder, TextInputBuilder,
   TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle
 } = require("discord.js");
-const { ACTIVITY_ROLE_ID, CANAL_INACTIVIDAD_ID, BANNER_INACTIVIDAD } = require("../config");
+const { ACTIVITY_ROLE_ID, CANAL_INACTIVIDAD_ID,
+        BANNER_INACTIVIDAD, ROL_INACTIVO_ID,
+        CANAL_CMD_INACTIVO, GUILD_ID }             = require("../config");
 
 const excusasActivas = new Map();
 const cooldowns      = new Map();
 const COOLDOWN_MS    = 60 * 1000;
-const btnMessages    = new Map(); // userId → msg con botón
+const btnMessages    = new Map();
 
-// ── !inactivo ────────────────────────────────────────────────────
 async function handleInactividad(message) {
   if (message.author.bot) return;
   if (message.content.trim().toLowerCase() !== "!inactivo") return;
 
   if (!message.member.roles.cache.has(ACTIVITY_ROLE_ID))
     return message.reply("❌ No tienes permiso para usar este comando.");
+
+  // Solo en canal permitido
+  if (message.channel.id !== CANAL_CMD_INACTIVO) {
+    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_INACTIVO}>`);
+    setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
+    return;
+  }
 
   const key    = `inactivo:${message.author.id}`;
   const ultimo = cooldowns.get(key);
@@ -27,16 +35,12 @@ async function handleInactividad(message) {
     return;
   }
   cooldowns.set(key, Date.now());
-
-  // Borrar el comando del usuario
   try { await message.delete(); } catch {}
 
   const embed = new EmbedBuilder()
-    .setColor(0x39FF14)
-    .setTitle("📋 Justificación de Inactividad")
+    .setColor(0x39FF14).setTitle("📋 Justificación de Inactividad")
     .setDescription("Presiona el botón para llenar el formulario de inactividad.")
-    .setImage(BANNER_INACTIVIDAD)
-    .setTimestamp();
+    .setImage(BANNER_INACTIVIDAD).setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -48,15 +52,9 @@ async function handleInactividad(message) {
 
   const msg = await message.channel.send({ embeds: [embed], components: [row] });
   btnMessages.set(message.author.id, msg);
-
-  // Borrar si no se usa en 2 minutos
-  setTimeout(async () => {
-    try { await msg.delete(); } catch {}
-    btnMessages.delete(message.author.id);
-  }, 2 * 60 * 1000);
+  setTimeout(async () => { try { await msg.delete(); } catch {} btnMessages.delete(message.author.id); }, 2 * 60 * 1000);
 }
 
-// ── Botón abre modal ─────────────────────────────────────────────
 async function handleInactividadButton(interaction) {
   if (!interaction.isButton()) return;
   if (!interaction.customId.startsWith("btn_inactivo:")) return;
@@ -71,35 +69,21 @@ async function handleInactividadButton(interaction) {
 
   modal.addComponents(
     new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("razon")
-        .setLabel("¿Cuál es tu razón de inactividad?")
-        .setStyle(TextInputStyle.Paragraph)
-        .setPlaceholder("Ej: Viaje, trabajo, salud...")
-        .setRequired(true)
+      new TextInputBuilder().setCustomId("razon").setLabel("¿Cuál es tu razón de inactividad?")
+        .setStyle(TextInputStyle.Paragraph).setPlaceholder("Ej: Viaje, trabajo, salud...").setRequired(true)
     ),
     new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("desde")
-        .setLabel("¿Desde qué fecha? (YYYY-MM-DD)")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Ej: 2026-05-15")
-        .setRequired(true)
+      new TextInputBuilder().setCustomId("desde").setLabel("¿Desde qué fecha? (YYYY-MM-DD)")
+        .setStyle(TextInputStyle.Short).setPlaceholder("Ej: 2026-05-15").setRequired(true)
     ),
     new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("hasta")
-        .setLabel("¿Hasta qué fecha? (YYYY-MM-DD)")
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder("Ej: 2026-05-20")
-        .setRequired(true)
+      new TextInputBuilder().setCustomId("hasta").setLabel("¿Hasta qué fecha? (YYYY-MM-DD)")
+        .setStyle(TextInputStyle.Short).setPlaceholder("Ej: 2026-05-20").setRequired(true)
     )
   );
-
   await interaction.showModal(modal);
 }
 
-// ── Modal submit → borrar botón, enviar embed final ──────────────
 async function handleInactividadModal(interaction, client) {
   if (!interaction.isModalSubmit()) return;
   if (interaction.customId !== "modal_inactividad") return;
@@ -110,20 +94,33 @@ async function handleInactividadModal(interaction, client) {
 
   excusasActivas.set(interaction.user.id, { hasta, razon, desde });
 
-  // Borrar el mensaje con el botón
+  // Borrar mensaje con botón
   const btnMsg = btnMessages.get(interaction.user.id);
-  if (btnMsg) {
-    try { await btnMsg.delete(); } catch {}
-    btnMessages.delete(interaction.user.id);
-  }
+  if (btnMsg) { try { await btnMsg.delete(); } catch {} btnMessages.delete(interaction.user.id); }
+
+  // Dar rol de inactivo temporalmente
+  try {
+    const guild  = await client.guilds.fetch(GUILD_ID);
+    const member = await guild.members.fetch(interaction.user.id);
+    await member.roles.add(ROL_INACTIVO_ID);
+
+    // Quitar el rol cuando expire la fecha
+    const hastaDate = new Date(hasta + "T00:00:00-05:00"); // Colombia UTC-5
+    const msHasta   = hastaDate.getTime() - Date.now();
+    if (msHasta > 0) {
+      setTimeout(async () => {
+        try { await member.roles.remove(ROL_INACTIVO_ID); } catch {}
+        excusasActivas.delete(interaction.user.id);
+      }, msHasta);
+    }
+  } catch(e) { console.error("[INACTIVIDAD] Error dando rol:", e.message); }
 
   // Embed en canal de inactividad
   try {
     const canal = await client.channels.fetch(CANAL_INACTIVIDAD_ID);
     if (canal) {
       const embed = new EmbedBuilder()
-        .setColor(0x39FF14)
-        .setTitle("📋 Justificación de Inactividad")
+        .setColor(0x39FF14).setTitle("📋 Justificación de Inactividad")
         .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
         .setImage(BANNER_INACTIVIDAD)
         .addFields(
@@ -134,15 +131,12 @@ async function handleInactividadModal(interaction, client) {
         )
         .setTimestamp()
         .setFooter({ text: `ID: ${interaction.user.id}` });
-
       await canal.send({ embeds: [embed] });
     }
-  } catch (err) {
-    console.error("[INACTIVIDAD] Error:", err);
-  }
+  } catch(e) { console.error("[INACTIVIDAD] Error:", e.message); }
 
   await interaction.reply({
-    content: `✅ Justificación enviada. No recibirás advertencias hasta el **${hasta}**.`,
+    content: `✅ Justificación enviada. Se te asignó el rol de inactivo hasta el **${hasta}**.`,
     ephemeral: true
   });
 }
