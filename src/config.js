@@ -1,10 +1,10 @@
 module.exports = {
   // ── ROLES ─────────────────────────────────────────────────────
-  ACTIVITY_ROLE_ID:      "1503540325522870332",
-  TOP_ROLE_ID:           "1504624544114282506",
-  STAFF_ROLE_ID:         "1479568728340431100",
-  ROL_AVISO_ID:          "1469434074925105204",
-  ROL_TORNEO_ID:         "1503540325522870332",
+  ACTIVITY_ROLE_ID:   "1503540325522870332",
+  TOP_ROLE_ID:        "1504624544114282506",
+  STAFF_ROLE_ID:      "1479568728340431100",
+  ROL_AVISO_ID:       "1469434074925105204",
+  SS_ROLE_ID:         "1497410474881319102", // encargado de SS
 
   // ── CANALES ───────────────────────────────────────────────────
   CANAL_ACTIVIDAD_ID:    "1502906373846077582",
@@ -13,6 +13,8 @@ module.exports = {
   CANAL_LOGS_ID:         "1502906524001898537",
   CANAL_INACTIVIDAD_ID:  "1469434074925105204",
   CANAL_SANCIONES_ID:    "1469434077433299160",
+  CANAL_AVISO_LINK:      "https://discord.com/channels/1455775938200473606/1469434074925105204",
+  AFK_CHANNEL_ID:        "1469434019027353663", // canal AFK — no cuenta horas
   GUILD_ID:              "1455775938200473606",
 
   // ── IMÁGENES ──────────────────────────────────────────────────
@@ -24,9 +26,9 @@ module.exports = {
   TIMEZONE:           "America/Bogota",
   MAX_SESSION_MS:     12 * 60 * 60 * 1000,
 
-  // ── DÍAS DE ADVERTENCIAS ──────────────────────────────────────
-  DIA_ADV_1:   3,   // primera advertencia
-  DIA_ADV_2:   6,   // segunda advertencia
-  DIA_ADV_3:   11,  // advertencia final (último aviso)
-  DIA_EXPULSA: 12,  // quitar rol
+  // ── DÍAS ADVERTENCIAS ─────────────────────────────────────────
+  DIA_ADV_1:   3,
+  DIA_ADV_2:   6,
+  DIA_ADV_3:   11,
+  DIA_EXPULSA: 12,
 };

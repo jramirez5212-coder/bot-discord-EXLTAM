@@ -1,8 +1,3 @@
-// ════════════════════════════════════════════════════════════════
-//  BOT COMPLETO — Postulaciones + Tickets + Actividad
-//  Token en .env:  TOKEN=tu_token
-// ════════════════════════════════════════════════════════════════
-
 require("dotenv").config();
 
 const {
@@ -15,7 +10,6 @@ const {
 
 const fs = require("fs");
 
-// ── Módulos de actividad ─────────────────────────────────────────
 const voiceEvent                   = require("./src/events/voiceStateUpdate");
 const { handleHoras }              = require("./src/commands/horas");
 const { handleAnuncios }           = require("./src/commands/anuncios");
@@ -27,17 +21,17 @@ const { handleTorneo,
         handleTorneoInteraction }  = require("./src/commands/torneo");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
+const { handleAdmin }              = require("./src/commands/admin");
 
 global.isExcused = isExcused;
-
-// ════════════════════════════════════════════════════════════════
-//  CONFIG POSTULACIONES / TICKETS
-// ════════════════════════════════════════════════════════════════
 
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("Falta TOKEN en el archivo .env");
 
 const COLOR = 0x00ff3c;
+
+// ID del rol encargado de SS
+const SS_ROLE_ID = "1497410474881319102";
 
 const config = {
   guildName: "EXLATAM / #300K?",
@@ -61,7 +55,7 @@ const ticketTypes = {
   partners:  { label:"Partners",  emoji:"🤝", categoryId:"1469433998722732279", roleId:"1469433860293918921", description:"⚠️ **Solicitud de partner**\n\n~ Nombre del servidor:\n~ Invitación:\n~ Miembros:\n~ ¿Qué tipo de alianza quieres hacer?:\n~ ¿Qué puedes ofrecer como partner?:" }
 };
 
-const appFile = "./applications.json";
+const appFile  = "./applications.json";
 const metaFile = "./rolas_meta.json";
 for (const file of [appFile, metaFile]) { if (!fs.existsSync(file)) fs.writeFileSync(file, "{}"); }
 
@@ -74,21 +68,28 @@ const saveMeta = d => saveJson(metaFile, d);
 
 const colombiaDate = () => new Date().toLocaleDateString("en-CA",{timeZone:"America/Bogota"});
 const colombiaTime = () => new Date().toLocaleTimeString("es-CO",{timeZone:"America/Bogota",hour:"2-digit",minute:"2-digit",hour12:true});
-const todayFooter = n => `Ahora somos ${n} miembros • hoy a las ${new Date().toLocaleTimeString("es-CO",{hour:"numeric",minute:"2-digit",hour12:true})}`;
-const cleanName = t => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9-]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").slice(0,35);
+const todayFooter  = n => `Ahora somos ${n} miembros • hoy a las ${new Date().toLocaleTimeString("es-CO",{hour:"numeric",minute:"2-digit",hour12:true})}`;
+const cleanName        = t => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9-]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").slice(0,35);
 const cleanChannelName = t => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9-]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"").slice(0,80);
 const answerFromMessage = m => { const t=m.content?.trim()||""; const f=m.attachments.map(a=>a.url); return [t,...f].filter(Boolean).join("\n")||"Sin respuesta"; };
-const isStaffMember = m => m?.roles?.cache?.has(config.staffBandasRoleId) || m?.permissions?.has(PermissionFlagsBits.Administrator);
-const canStaff = i => i.member?.roles?.cache?.has(config.staffBandasRoleId) || i.member?.permissions?.has(PermissionFlagsBits.Administrator);
+const isStaffMember    = m => m?.roles?.cache?.has(config.staffBandasRoleId) || m?.permissions?.has(PermissionFlagsBits.Administrator);
+const canStaff         = i => i.member?.roles?.cache?.has(config.staffBandasRoleId) || i.member?.permissions?.has(PermissionFlagsBits.Administrator);
 const getTicketTypeFromChannel = ch => ch?.topic?.match(/ticketType:([a-zA-Z0-9_-]+)/)?.[1] || null;
 const canManageThisTicket = i => { if (!i.member) return false; if (i.member.permissions.has(PermissionFlagsBits.Administrator)) return true; const t=ticketTypes[getTicketTypeFromChannel(i.channel)]; return t?i.member.roles.cache.has(t.roleId):false; };
-const getTicketUserId = ch => ch.topic?.match(/postulacionUser:(\d+)/)?.[1] || null;
+const getTicketUserId  = ch => ch.topic?.match(/postulacionUser:(\d+)/)?.[1] || null;
 
 const buildRenameTicketModal = () => { const m=new ModalBuilder().setCustomId("modal_rename_ticket").setTitle("Renombrar ticket"); m.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("new_name").setLabel("Nuevo nombre del canal").setPlaceholder("Ejemplo: reporte-juan").setStyle(TextInputStyle.Short).setRequired(true))); return m; };
-const renameResultModal = () => { const m=new ModalBuilder().setCustomId("modal_rename_resultado").setTitle("Renombrar ticket"); m.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("new_name").setLabel("Nuevo nombre del canal").setPlaceholder("Ejemplo: aprobado-juan").setStyle(TextInputStyle.Short).setRequired(true))); return m; };
-const resultTicketButtons = () => new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("cerrar_resultado_ticket").setLabel("Cerrar ticket").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("renombrar_resultado_ticket").setLabel("Renombrar ticket").setStyle(ButtonStyle.Primary));
-const decisionButtons = id => new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`aprobar_${id}`).setLabel("Aprobar").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId(`rechazar_${id}`).setLabel("Rechazar").setStyle(ButtonStyle.Danger));
-const questionEmbed = i => new EmbedBuilder().setColor(COLOR).setAuthor({name:"EXLATAM Postulaciones",iconURL:config.logoUrl}).setTitle("📝 | Postulación").setDescription(`**${i+1}/${questions.length}. ${questions[i]}**\n\nResponde enviando un mensaje.`).setFooter({text:config.guildName,iconURL:config.logoUrl});
+const renameResultModal      = () => { const m=new ModalBuilder().setCustomId("modal_rename_resultado").setTitle("Renombrar ticket"); m.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("new_name").setLabel("Nuevo nombre del canal").setPlaceholder("Ejemplo: aprobado-juan").setStyle(TextInputStyle.Short).setRequired(true))); return m; };
+
+// Botones ticket resultado — incluye "Solicitar encargado de SS"
+const resultTicketButtons = () => new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setCustomId("cerrar_resultado_ticket").setLabel("Cerrar ticket").setStyle(ButtonStyle.Danger),
+  new ButtonBuilder().setCustomId("renombrar_resultado_ticket").setLabel("Renombrar ticket").setStyle(ButtonStyle.Primary),
+  new ButtonBuilder().setCustomId("solicitar_ss").setLabel("Solicitar encargado de SS").setStyle(ButtonStyle.Secondary).setEmoji("📋")
+);
+
+const decisionButtons  = id => new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`aprobar_${id}`).setLabel("Aprobar").setStyle(ButtonStyle.Success),new ButtonBuilder().setCustomId(`rechazar_${id}`).setLabel("Rechazar").setStyle(ButtonStyle.Danger));
+const questionEmbed    = i => new EmbedBuilder().setColor(COLOR).setAuthor({name:"EXLATAM Postulaciones",iconURL:config.logoUrl}).setTitle("📝 | Postulación").setDescription(`**${i+1}/${questions.length}. ${questions[i]}**\n\nResponde enviando un mensaje. Puedes enviar texto, links o imágenes.`).setFooter({text:config.guildName,iconURL:config.logoUrl});
 const buildApplicationEmbed = (user,app) => new EmbedBuilder().setColor(COLOR).setAuthor({name:"Nueva postulación recibida",iconURL:config.logoUrl}).setTitle("📝 Postulación EXLATAM").setDescription(questions.map((q,i)=>`**${q}**\n${app.answers[i]||"Sin respuesta"}`).join("\n\n")).addFields({name:"Usuario",value:`<@${user.id}>`,inline:true},{name:"ID",value:user.id,inline:true},{name:"Estado",value:"`Pendiente`",inline:true}).setThumbnail(user.displayAvatarURL({dynamic:true})).setFooter({text:config.guildName,iconURL:config.logoUrl}).setTimestamp();
 
 const buildPanel = () => ({
@@ -101,30 +102,13 @@ const ticketPanel = () => ({
   components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("ticket_reportes").setLabel("Reportes").setEmoji("⛔").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("ticket_compras").setLabel("Compras").setEmoji("🛍️").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("ticket_partners").setLabel("Partners").setEmoji("🤝").setStyle(ButtonStyle.Primary))]
 });
 
-async function botLog(emoji,titulo,detalle="",origen="auto",ejecutadoPor=null) {
-  try {
-    const ch=await client.channels.fetch(config.botLogsChannelId).catch(()=>null); if(!ch?.isTextBased()) return;
-    const embed=new EmbedBuilder().setColor(origen==="manual"?0xf0a500:COLOR).setAuthor({name:"EXLATAM Bot — Log",iconURL:config.logoUrl}).setTitle(`${emoji} ${titulo}`).addFields({name:"Origen",value:origen==="manual"?`🖐️ Manual${ejecutadoPor?` — ${ejecutadoPor}`:""}` :"🤖 Automático",inline:true},{name:"Hora",value:colombiaTime(),inline:true},{name:"Fecha",value:colombiaDate(),inline:true}).setFooter({text:config.guildName,iconURL:config.logoUrl}).setTimestamp();
-    if(detalle) embed.setDescription(detalle);
-    await ch.send({embeds:[embed]});
-  } catch(e){console.log("⚠️ botLog:",e.message);}
-}
+async function botLog(emoji,titulo,detalle="",origen="auto",ejecutadoPor=null){try{const ch=await client.channels.fetch(config.botLogsChannelId).catch(()=>null);if(!ch?.isTextBased())return;const embed=new EmbedBuilder().setColor(origen==="manual"?0xf0a500:COLOR).setAuthor({name:"EXLATAM Bot — Log",iconURL:config.logoUrl}).setTitle(`${emoji} ${titulo}`).addFields({name:"Origen",value:origen==="manual"?`🖐️ Manual${ejecutadoPor?` — ${ejecutadoPor}`:""}` :"🤖 Automático",inline:true},{name:"Hora",value:colombiaTime(),inline:true},{name:"Fecha",value:colombiaDate(),inline:true}).setFooter({text:config.guildName,iconURL:config.logoUrl}).setTimestamp();if(detalle)embed.setDescription(detalle);await ch.send({embeds:[embed]});}catch(e){console.log("⚠️ botLog:",e.message);}}
 
-async function sendAutoPostulacionesPanel(origen="auto",ejecutadoPor=null) {
-  const ch=await client.channels.fetch(config.postulacionesPanelChannelId).catch(()=>null); if(!ch?.isTextBased()) return;
-  const meta=loadMeta();
-  if(meta.postulacionesPanelMessageId){const old=await ch.messages.fetch(meta.postulacionesPanelMessageId).catch(()=>null);if(old){await old.edit(buildPanel());}else{const m=await ch.send(buildPanel());meta.postulacionesPanelMessageId=m.id;saveMeta(meta);}}
-  else{const m=await ch.send(buildPanel());meta.postulacionesPanelMessageId=m.id;saveMeta(meta);}
-  await botLog("📝","Panel de postulaciones actualizado",`Canal: <#${config.postulacionesPanelChannelId}>`,origen,ejecutadoPor);
-}
+async function sendAutoPostulacionesPanel(origen="auto",ejecutadoPor=null){const ch=await client.channels.fetch(config.postulacionesPanelChannelId).catch(()=>null);if(!ch?.isTextBased())return;const meta=loadMeta();if(meta.postulacionesPanelMessageId){const old=await ch.messages.fetch(meta.postulacionesPanelMessageId).catch(()=>null);if(old){await old.edit(buildPanel());}else{const m=await ch.send(buildPanel());meta.postulacionesPanelMessageId=m.id;saveMeta(meta);}}else{const m=await ch.send(buildPanel());meta.postulacionesPanelMessageId=m.id;saveMeta(meta);}await botLog("📝","Panel de postulaciones actualizado",`Canal: <#${config.postulacionesPanelChannelId}>`,origen,ejecutadoPor);}
 
 async function askQuestion(userId){const apps=loadApps();const app=apps[userId];if(!app)return;const user=await client.users.fetch(userId).catch(()=>null);if(!user)return;await user.send({embeds:[questionEmbed(app.current)]});}
 
-async function sendApplicationToStaff(userId){
-  const apps=loadApps();const app=apps[userId];if(!app)return;
-  const user=await client.users.fetch(userId).catch(()=>null);const ch=await client.channels.fetch(config.postulacionesChannelId).catch(()=>null);if(!user||!ch?.isTextBased())return;
-  try{const msg=await ch.send({content:`<@&${config.staffBandasRoleId}> Nueva postulación de <@${userId}>`,embeds:[buildApplicationEmbed(user,app)],components:[decisionButtons(userId)]});app.staffMessageId=msg.id;app.status="pendiente";apps[userId]=app;saveApps(apps);await botLog("📨","Postulación enviada al staff",`Usuario: <@${userId}>`,"auto");}catch(e){console.log("❌",e.message);}
-}
+async function sendApplicationToStaff(userId){const apps=loadApps();const app=apps[userId];if(!app)return;const user=await client.users.fetch(userId).catch(()=>null);const ch=await client.channels.fetch(config.postulacionesChannelId).catch(()=>null);if(!user||!ch?.isTextBased())return;try{const msg=await ch.send({content:`<@&${config.staffBandasRoleId}> Nueva postulación de <@${userId}>`,embeds:[buildApplicationEmbed(user,app)],components:[decisionButtons(userId)]});app.staffMessageId=msg.id;app.status="pendiente";apps[userId]=app;saveApps(apps);await botLog("📨","Postulación enviada",`<@${userId}>`,"auto");}catch(e){console.log("❌",e.message);}}
 
 async function createResultTicket(userId,status,staffUser){
   try{
@@ -142,29 +126,21 @@ async function sendRejectAppealDM(user,staffUser){await user.send({content:`❌ 
 
 async function startFeedback(userId,status,staffId){const apps=loadApps();apps[userId]=apps[userId]||{};apps[userId].feedback={active:true,step:0,status,staffId,answers:[]};saveApps(apps);const user=await client.users.fetch(userId).catch(()=>null);if(!user)return;await user.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"EXLATAM Postulaciones",iconURL:config.logoUrl}).setTitle("⭐ Califica la atención").setDescription("El ticket fue cerrado.\n\nDel **1 al 5**, ¿cómo calificas la atención recibida?").setFooter({text:config.guildName,iconURL:config.logoUrl})]}).catch(()=>null);}
 
-async function sendFeedbackToStaff(userId){
-  const apps=loadApps();const app=apps[userId];if(!app?.feedback)return;
-  const ch=await client.channels.fetch(config.postulacionesChannelId).catch(()=>null);const user=await client.users.fetch(userId).catch(()=>null);if(!ch?.isTextBased()||!user)return;
-  await ch.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"Feedback de postulación",iconURL:config.logoUrl}).setTitle("⭐ Calificación recibida").addFields({name:"Usuario",value:`<@${userId}>`,inline:true},{name:"Estado",value:app.feedback.status||"No definido",inline:true},{name:"Staff",value:`<@${app.feedback.staffId}>`,inline:true},{name:"Calificación",value:app.feedback.answers[0]||"Sin calificación",inline:false},{name:"Sugerencia / Comentario",value:app.feedback.answers[1]||"Sin comentario",inline:false}).setThumbnail(user.displayAvatarURL({dynamic:true})).setTimestamp()]});
-  await botLog("⭐","Feedback recibido",`<@${userId}> — ${app.feedback.answers[0]||"?"}`,"auto");
-  delete app.feedback;apps[userId]=app;saveApps(apps);
-}
+async function sendFeedbackToStaff(userId){const apps=loadApps();const app=apps[userId];if(!app?.feedback)return;const ch=await client.channels.fetch(config.postulacionesChannelId).catch(()=>null);const user=await client.users.fetch(userId).catch(()=>null);if(!ch?.isTextBased()||!user)return;await ch.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"Feedback de postulación",iconURL:config.logoUrl}).setTitle("⭐ Calificación recibida").addFields({name:"Usuario",value:`<@${userId}>`,inline:true},{name:"Estado",value:app.feedback.status||"No definido",inline:true},{name:"Staff",value:`<@${app.feedback.staffId}>`,inline:true},{name:"Calificación",value:app.feedback.answers[0]||"Sin calificación",inline:false},{name:"Sugerencia / Comentario",value:app.feedback.answers[1]||"Sin comentario",inline:false}).setThumbnail(user.displayAvatarURL({dynamic:true})).setTimestamp()]});await botLog("⭐","Feedback recibido",`<@${userId}> — ${app.feedback.answers[0]||"?"}`,"auto");delete app.feedback;apps[userId]=app;saveApps(apps);}
 
-// ════════════════════════════════════════════════════════════════
-//  CLIENT
-// ════════════════════════════════════════════════════════════════
-
+// ── CLIENT ───────────────────────────────────────────────────────
 const client = new Client({
   intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildMembers,GatewayIntentBits.GuildVoiceStates,GatewayIntentBits.GuildMessages,GatewayIntentBits.MessageContent,GatewayIntentBits.DirectMessages],
   partials:[Partials.Channel,Partials.Message,Partials.User]
 });
 
-// ════════════════════════════════════════════════════════════════
-//  READY
-// ════════════════════════════════════════════════════════════════
-
+// ── READY ────────────────────────────────────────────────────────
 client.once("clientReady", async () => {
   console.log(`✅ BOT COMPLETO EXLATAM — ${client.user.tag}`);
+
+  // Recuperar sesiones activas de voz tras reinicio
+  voiceEvent.recoverSessions(client);
+
   startActividadTask(client);
   startInactividadTask(client);
   await botLog("🟢","Bot iniciado",`Conectado como **${client.user.tag}**`,"auto");
@@ -172,31 +148,46 @@ client.once("clientReady", async () => {
   setInterval(()=>sendAutoPostulacionesPanel("auto").catch(()=>{}), 10*60*1000);
 });
 
-// ════════════════════════════════════════════════════════════════
-//  VOZ
-// ════════════════════════════════════════════════════════════════
+// ── BIENVENIDA ───────────────────────────────────────────────────
+client.on("guildMemberAdd", async member => {
+  try {
+    const channel = await member.guild.channels.fetch(config.welcomeChannelId).catch(()=>null);
+    if (!channel?.isTextBased()) return;
 
+    const embed = new EmbedBuilder()
+      .setColor(COLOR)
+      .setDescription(
+        `*Te damos la bienvenida a* 🐉 **${config.guildName}**,\n` +
+        `*si quieres postular acá lo puedes hacer:* <#${config.postulacionesPanelChannelId}>`
+      )
+      .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
+      .setImage(config.bannerUrl)
+      .setFooter({ text: todayFooter(member.guild.memberCount) });
+
+    await channel.send({
+      content: `${member} **Bienvenido a** __${config.guildName}__ 🚙`,
+      embeds:  [embed]
+    });
+  } catch(e) { console.log("⚠️ Bienvenida error:", e.message); }
+});
+
+// ── VOZ ──────────────────────────────────────────────────────────
 client.on("voiceStateUpdate",(o,n)=>voiceEvent.execute(o,n,client));
 
-// ════════════════════════════════════════════════════════════════
-//  MESSAGES
-// ════════════════════════════════════════════════════════════════
-
+// ── MESSAGES ─────────────────────────────────────────────────────
 client.on("messageCreate", async message => {
   if (message.author.bot) return;
 
   if (message.guild) {
-    // Actividad
     await handleHoras(message, client);
     await handleAnuncios(message);
     await handleInactividad(message);
     await handleTorneo(message);
 
-    // Postulaciones
     if (message.content.trim().toLowerCase() === "!panel") {
-      if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos.").catch(()=>null);
+      if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos para usar este comando.").catch(()=>null);
       await sendAutoPostulacionesPanel("manual",`<@${message.author.id}>`);
-      return message.reply("✅ Panel enviado/actualizado.").catch(()=>null);
+      return message.reply("✅ Panel de postulaciones enviado/actualizado.").catch(()=>null);
     }
     if (message.content === "!paneltickets") {
       if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) return message.reply("No tienes permisos.");
@@ -208,8 +199,8 @@ client.on("messageCreate", async message => {
 
   // DMs — postulaciones
   const userId = message.author.id;
-  const apps = loadApps();
-  const app = apps[userId];
+  const apps   = loadApps();
+  const app    = apps[userId];
   if (!app) return;
 
   if (app.feedback?.active) {
@@ -233,27 +224,22 @@ client.on("messageCreate", async message => {
   apps[userId]=app;saveApps(apps);await askQuestion(userId);
 });
 
-// ════════════════════════════════════════════════════════════════
-//  INTERACTIONS
-// ════════════════════════════════════════════════════════════════
-
+// ── INTERACTIONS ─────────────────────────────────────────────────
 client.on("interactionCreate", async interaction => {
   try {
-    // Actividad primero
     await handleInactividadButton(interaction);
     await handleInactividadModal(interaction, client);
     await handleTorneoInteraction(interaction, client);
     if (interaction.replied || interaction.deferred) return;
 
-    // Modales postulaciones
     if (interaction.isModalSubmit()) {
       if (interaction.customId === "modal_rename_ticket") {
-        if (!canManageThisTicket(interaction)) return interaction.reply({content:"No tienes permisos.",ephemeral:true});
+        if (!canManageThisTicket(interaction)) return interaction.reply({content:"No tienes permisos para renombrar este ticket.",ephemeral:true});
         const n=cleanChannelName(interaction.fields.getTextInputValue("new_name"));if(!n)return interaction.reply({content:"Nombre inválido.",ephemeral:true});
         await interaction.channel.setName(n);return interaction.reply({content:`✅ Canal renombrado a **${n}**.`,ephemeral:true});
       }
       if (interaction.customId === "modal_rename_resultado") {
-        if (!canStaff(interaction)) return interaction.reply({content:"Solo el staff puede renombrar.",ephemeral:true});
+        if (!canStaff(interaction)) return interaction.reply({content:"Solo el staff puede renombrar este ticket.",ephemeral:true});
         const n=cleanName(interaction.fields.getTextInputValue("new_name"));if(!n)return interaction.reply({content:"Nombre inválido.",ephemeral:true});
         await interaction.channel.setName(n);await botLog("✏️","Ticket renombrado",`**${n}** por <@${interaction.user.id}>`,"manual",`<@${interaction.user.id}>`);
         return interaction.reply({content:`✅ Canal renombrado a **${n}**.`,ephemeral:true});
@@ -263,57 +249,78 @@ client.on("interactionCreate", async interaction => {
 
     if (!interaction.isButton()) return;
 
-    // Botones postulaciones
+    // ── Botón solicitar encargado de SS ──────────────────────────
+    if (interaction.customId === "solicitar_ss") {
+      if (!canStaff(interaction))
+        return interaction.reply({content:"❌ Solo el staff puede solicitar un encargado de SS.",ephemeral:true});
+
+      try {
+        // Agregar rol SS al canal del ticket
+        await interaction.channel.permissionOverwrites.edit(SS_ROLE_ID, {
+          ViewChannel:      true,
+          SendMessages:     true,
+          ReadMessageHistory: true,
+        });
+      } catch(e) { console.error("[SS] Error agregando rol:", e.message); }
+
+      await interaction.reply({
+        content: `<@&${SS_ROLE_ID}> Un encargado de SS ha sido solicitado en el ticket!`,
+        ephemeral: false
+      });
+      return;
+    }
+
     if (interaction.customId === "start_postulacion") {
       await interaction.deferReply({ephemeral:true});
       const apps=loadApps();apps[interaction.user.id]={status:"respondiendo",current:0,answers:[],createdAt:Date.now()};saveApps(apps);
-      try{await askQuestion(interaction.user.id);await botLog("📝","Postulación iniciada",`<@${interaction.user.id}>`,"auto");return interaction.editReply({content:"📩 Te envié las preguntas por DM. Revisa tus mensajes privados."});}
-      catch{delete apps[interaction.user.id];saveApps(apps);return interaction.editReply({content:"No pude enviarte DM. Activa los mensajes privados e intenta otra vez."});}
+      try{await askQuestion(interaction.user.id);await botLog("📝","Postulación iniciada",`<@${interaction.user.id}>`,"auto");return interaction.editReply({content:"📩 Te envié las preguntas por mensaje privado. Revisa tus DMs."});}
+      catch{delete apps[interaction.user.id];saveApps(apps);return interaction.editReply({content:"No pude enviarte DM. Activa los mensajes privados del servidor e intenta otra vez."});}
     }
 
     if (interaction.customId.startsWith("apelar_rechazo_")) {
       const uid=interaction.customId.replace("apelar_rechazo_","");if(interaction.user.id!==uid)return interaction.reply({content:"Este botón no es para ti.",ephemeral:true});
       const apps=loadApps();const staffId=apps[uid]?.lastRejectStaffId||client.user.id;const su=await client.users.fetch(staffId).catch(()=>client.user);
       const t=await createResultTicket(uid,"rechazada",su);await botLog("🔄","Apelación creada",`<@${uid}>`,"auto");
-      return interaction.reply({content:`✅ Ticket de apelación: ${t}`,ephemeral:true});
+      return interaction.reply({content:`✅ Se creó tu ticket de apelación: ${t}`,ephemeral:true});
     }
 
     if (interaction.customId === "cerrar_resultado_ticket") {
-      if (!canStaff(interaction)) return interaction.reply({content:"Solo el staff puede cerrar.",ephemeral:true});
-      const uid=getTicketUserId(interaction.channel);await interaction.reply({content:"Cerrando ticket...",ephemeral:true});
+      if (!canStaff(interaction)) return interaction.reply({content:"Solo el staff puede cerrar este ticket.",ephemeral:true});
+      const uid=getTicketUserId(interaction.channel);await interaction.reply({content:"Cerrando ticket y pidiendo calificación...",ephemeral:true});
       if(uid){const s=interaction.channel.topic?.match(/status:([a-zA-Z]+)/)?.[1]||"cerrada";await startFeedback(uid,s,interaction.user.id);}
-      await botLog("🔒","Ticket cerrado",`${interaction.channel.name} | <@${interaction.user.id}>`,"manual",`<@${interaction.user.id}>`);
+      await botLog("🔒","Ticket cerrado",`${interaction.channel.name} | Staff: <@${interaction.user.id}>`,"manual",`<@${interaction.user.id}>`);
       setTimeout(()=>interaction.channel.delete().catch(()=>null),3000);return;
     }
 
     if (interaction.customId === "renombrar_resultado_ticket") {
-      if (!canStaff(interaction)) return interaction.reply({content:"Solo el staff puede renombrar.",ephemeral:true});
+      if (!canStaff(interaction)) return interaction.reply({content:"Solo el staff puede renombrar este ticket.",ephemeral:true});
       return interaction.showModal(renameResultModal());
     }
 
     if (interaction.customId.startsWith("aprobar_") || interaction.customId.startsWith("rechazar_")) {
-      if (!canStaff(interaction)) return interaction.reply({content:"No tienes permisos.",ephemeral:true});
+      if (!canStaff(interaction)) return interaction.reply({content:"No tienes permisos para revisar postulaciones.",ephemeral:true});
       const approved=interaction.customId.startsWith("aprobar_");const uid=interaction.customId.split("_")[1];
       const user=await client.users.fetch(uid).catch(()=>null);if(!user)return interaction.reply({content:"No encontré al usuario.",ephemeral:true});
-      if(approved){await user.send({content:`✅ Su :pencil:｜Postulación fue aprobada por ${interaction.user}.\n\nSe creó un ticket para continuar. La segunda etapa será por llamada.`}).catch(()=>null);const t=await createResultTicket(uid,"aprobada",interaction.user);await interaction.message.edit({components:[]}).catch(()=>null);return interaction.reply({content:`✅ Aprobada. Ticket: ${t}`,ephemeral:true});}
+      if(approved){await user.send({content:`✅ Su :pencil:｜Postulación fue aprobada por ${interaction.user}.\n\nSe creó un ticket para continuar con el proceso. La segunda etapa será por llamada.`}).catch(()=>null);const t=await createResultTicket(uid,"aprobada",interaction.user);await interaction.message.edit({components:[]}).catch(()=>null);return interaction.reply({content:`✅ Postulación aprobada. Ticket: ${t}`,ephemeral:true});}
       await sendRejectAppealDM(user,interaction.user);const apps=loadApps();apps[uid]=apps[uid]||{};apps[uid].lastRejectStaffId=interaction.user.id;apps[uid].status="rechazada";apps[uid].reviewedAt=Date.now();saveApps(apps);
-      await interaction.message.edit({components:[]}).catch(()=>null);return interaction.reply({content:"❌ Rechazada. DM enviado.",ephemeral:true});
+      await interaction.message.edit({components:[]}).catch(()=>null);return interaction.reply({content:"❌ Postulación rechazada. DM con botón de apelación enviado.",ephemeral:true});
     }
 
     if (interaction.customId === "cerrar_ticket") {
-      if (!canManageThisTicket(interaction)) return interaction.reply({content:"Solo el staff puede cerrar.",ephemeral:true});
-      await interaction.reply({content:"Cerrando ticket...",ephemeral:true});setTimeout(()=>interaction.channel.delete().catch(()=>null),3000);return;
+      if (!canManageThisTicket(interaction)) return interaction.reply({content:"Solo el staff encargado de este ticket puede cerrarlo.",ephemeral:true});
+      await interaction.reply({content:"Cerrando ticket...",ephemeral:true});
+      setTimeout(()=>interaction.channel.delete().catch(()=>null),3000);return;
     }
 
     if (interaction.customId === "renombrar_ticket") {
-      if (!canManageThisTicket(interaction)) return interaction.reply({content:"Solo el staff puede renombrar.",ephemeral:true});
+      if (!canManageThisTicket(interaction)) return interaction.reply({content:"Solo el staff encargado de este ticket puede renombrarlo.",ephemeral:true});
       return interaction.showModal(buildRenameTicketModal());
     }
 
     if (!interaction.customId.startsWith("ticket_")) return;
     const type=interaction.customId.replace("ticket_","");const ticket=ticketTypes[type];if(!ticket)return;
     const existing=interaction.guild.channels.cache.find(ch=>ch.topic?.includes(`ticketOwner:${interaction.user.id}`)&&ch.topic?.includes(`ticketType:${type}`));
-    if(existing)return interaction.reply({content:`Ya tienes un ticket: ${existing}`,ephemeral:true});
+    if(existing)return interaction.reply({content:`Ya tienes un ticket abierto: ${existing}`,ephemeral:true});
     const ch=await interaction.guild.channels.create({name:`${type}-${cleanChannelName(interaction.user.username)}`,type:ChannelType.GuildText,parent:ticket.categoryId,topic:`ticketOwner:${interaction.user.id} | ticketType:${type}`,permissionOverwrites:[{id:interaction.guild.roles.everyone.id,deny:[PermissionFlagsBits.ViewChannel]},{id:interaction.user.id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},{id:ticket.roleId,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]}]});
     const embed=new EmbedBuilder().setColor(COLOR).setTitle(`${ticket.emoji} ${ticket.label}`).setDescription(ticket.description).setThumbnail(config.logoUrl).setFooter({text:config.guildName});
     const btns=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("cerrar_ticket").setLabel("Cerrar").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("renombrar_ticket").setLabel("Renombrar").setStyle(ButtonStyle.Primary));
@@ -322,11 +329,11 @@ client.on("interactionCreate", async interaction => {
 
   } catch(error) {
     console.error(error);
-    if(!interaction.replied&&!interaction.deferred) await interaction.reply({content:"Ocurrió un error.",ephemeral:true}).catch(()=>null);
+    if(!interaction.replied&&!interaction.deferred) await interaction.reply({content:"Ocurrió un error ejecutando esta acción.",ephemeral:true}).catch(()=>null);
   }
 });
 
-client.on("error",e=>console.log("⚠️ Error:",e.message));
+client.on("error",e=>console.log("⚠️ Error del cliente:",e.message));
 process.on("unhandledRejection",e=>console.log("⚠️ Promesa rechazada:",e?.message||e));
 
 client.login(TOKEN);

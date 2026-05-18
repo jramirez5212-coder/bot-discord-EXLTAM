@@ -11,9 +11,9 @@ const { CANAL_ACTIVIDAD_ID, CANAL_TOP_ID,
 let embedActividadId = null;
 let embedTopId       = null;
 let lastTopWeek      = null;
-let guildCache       = null; // caché del guild para no hacer fetch repetido
+let guildCache       = null;
 
-let _activeSessions  = null;
+let _activeSessions = null;
 function getActiveSessions() {
   if (!_activeSessions)
     _activeSessions = require("../events/voiceStateUpdate").activeSessions;
@@ -23,24 +23,17 @@ function getActiveSessions() {
 async function getGuild(client) {
   if (!guildCache) {
     guildCache = await client.guilds.fetch(GUILD_ID);
-    await guildCache.members.fetch(); // fetch UNA sola vez
+    await guildCache.members.fetch();
   }
   return guildCache;
 }
 
 function startActividadTask(client) {
   client.on("updateActividadEmbed", () => updateEmbeds(client));
-
-  // Actualizar embeds cada 30s — sin hacer members.fetch()
   setInterval(() => updateEmbeds(client), 30 * 1000);
-
-  // Re-fetch de miembros cada 10 minutos (no cada 30s)
   setInterval(async () => {
-    try {
-      if (guildCache) await guildCache.members.fetch();
-    } catch {}
+    try { if (guildCache) await guildCache.members.fetch(); } catch {}
   }, 10 * 60 * 1000);
-
   setInterval(() => checkTopSemanal(client), 60 * 1000);
   setTimeout(() => updateEmbeds(client), 5000);
 }
@@ -62,6 +55,7 @@ async function updateActividadEmbed(client) {
     const activeSessions = getActiveSessions();
     const ahora          = Date.now();
 
+    // Usar ACTIVITY_ROLE_ID — el rol que cuenta horas
     const miembros = guild.members.cache.filter(m =>
       m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot
     );
@@ -70,7 +64,8 @@ async function updateActividadEmbed(client) {
     for (const [id, member] of miembros) {
       const userData = getUser(data, id);
       const guardado = userData.days?.[hoy]?.totalMs || 0;
-      const enVivo   = activeSessions.get(id) ? (ahora - activeSessions.get(id)) : 0;
+      const sesionTs = activeSessions.get(id) || userData.sessionStart;
+      const enVivo   = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       lista.push({ member, msTotal: guardado + enVivo, enVivo: enVivo > 0 });
     }
     lista.sort((a, b) => b.msTotal - a.msTotal);
@@ -112,18 +107,20 @@ async function updateTopEmbed(client) {
     if (!canalTop) return;
 
     const data           = loadData();
-    const hoy            = todayKey();
     const activeSessions = getActiveSessions();
     const ahora          = Date.now();
 
+    // Top usa ACTIVITY_ROLE_ID para contar horas correctamente
+    // TOP_ROLE_ID es solo el rol que se da al ganador
     const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(TOP_ROLE_ID) && !m.user.bot
+      m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot
     );
 
     const ranking = [];
     for (const [id, member] of miembros) {
       const ud     = getUser(data, id);
-      const enVivo = activeSessions.get(id) ? (ahora - activeSessions.get(id)) : 0;
+      const sesionTs = activeSessions.get(id) || ud.sessionStart;
+      const enVivo = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       ranking.push({
         member,
         weekMs:  (ud.weekMs || 0) + enVivo,
@@ -172,23 +169,22 @@ async function checkTopSemanal(client) {
   const fecha = new Date().toLocaleDateString("en-US", {
     timeZone: "America/Bogota", weekday: "long",
   });
-
   if (hora !== "00:00" || fecha !== "Monday") return;
   const semanaActual = todayKey();
   if (lastTopWeek === semanaActual) return;
   lastTopWeek = semanaActual;
-
   console.log("[TOP] Ejecutando top semanal...");
 
   try {
-    const guild    = await getGuild(client);
-    await guildCache.members.fetch(); // fetch fresco para el top
+    const guild = await getGuild(client);
+    await guildCache.members.fetch();
     const data     = loadData();
     const canalTop = await client.channels.fetch(CANAL_TOP_ID).catch(() => null);
     const canalLog = await client.channels.fetch(CANAL_LOGS_ID).catch(() => null);
 
+    // Usar ACTIVITY_ROLE_ID para el ranking
     const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(TOP_ROLE_ID) && !m.user.bot
+      m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot
     );
 
     const ranking = [];
@@ -199,6 +195,7 @@ async function checkTopSemanal(client) {
     ranking.sort((a, b) => b.weekMs - a.weekMs);
     const top = ranking.slice(0, TOP_SIZE);
 
+    // Quitar rol TOP a todos los que lo tienen
     for (const [, member] of miembros) {
       if (member.roles.cache.has(TOP_ROLE_ID)) {
         try { await member.roles.remove(TOP_ROLE_ID); } catch {}
@@ -226,33 +223,29 @@ async function checkTopSemanal(client) {
     embedTopId = null;
 
     if (canalTop && ganadores) {
-      const embedGanadores = new EmbedBuilder()
-        .setTitle("🎉 ¡Ganadores del Top Semanal!")
-        .setColor(0xf1c40f)
-        .setThumbnail(LOGO_URL)
-        .setDescription(
-          `**¡Felicitaciones a los más activos de la semana!** 🏆\n\n` +
-          ganadores +
-          `\n¡Sigan así! 🎖️`
-        )
-        .addFields({ name: "📅 Semana", value: semanaActual, inline: true })
-        .setTimestamp()
-        .setFooter({ text: "Nueva semana, nueva oportunidad 💪" });
-
-      await canalTop.send({ content: `<@&${TOP_ROLE_ID}> 🎉`, embeds: [embedGanadores] });
+      await canalTop.send({
+        content: `<@&${TOP_ROLE_ID}> 🎉`,
+        embeds: [new EmbedBuilder()
+          .setTitle("🎉 ¡Ganadores del Top Semanal!")
+          .setColor(0xf1c40f)
+          .setThumbnail(LOGO_URL)
+          .setDescription(`**¡Felicitaciones a los más activos de la semana!** 🏆\n\n${ganadores}\n¡Sigan así! 🎖️`)
+          .addFields({ name: "📅 Semana", value: semanaActual, inline: true })
+          .setTimestamp()
+          .setFooter({ text: "Nueva semana, nueva oportunidad 💪" })]
+      });
     }
 
     for (const { member, topsGanados } of ascensos) {
       if (canalLog) {
-        const embed = new EmbedBuilder()
+        await canalLog.send({ embeds: [new EmbedBuilder()
           .setColor(0xf1c40f)
           .setTitle("⭐ Posible Ascenso")
           .setDescription(
             `${member} ha ganado **${topsGanados} tops** y tiene actividad constante.\n\n` +
             `<@&${STAFF_ROLE_ID}> este miembro **merece un ascenso**. 🎖️`
           )
-          .setTimestamp();
-        await canalLog.send({ embeds: [embed] });
+          .setTimestamp()] });
       }
     }
 
