@@ -18,7 +18,7 @@ function startInactividadTask(client) {
 async function checkMedianoche(client) {
   const hora     = horaMinutoColombia();
   const fechaHoy = todayKey();
-  if (hora !== "00:00" || lastCheck === fechaHoy) return;
+  if (hora !== "23:59" || lastCheck === fechaHoy) return;
   lastCheck = fechaHoy;
   console.log("[INACTIVIDAD] Check de medianoche...");
 

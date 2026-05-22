@@ -20,8 +20,10 @@ const { handleInactividad,
         handleInactividadModal,
         isExcused }                = require("./src/commands/inactividad");
 const { handleTorneo,
-        handleTorneoInteraction }  = require("./src/commands/torneo");
-const { handleAdmin }              = require("./src/commands/admin");
+        handleTorneoInteraction,
+        recoverTorneoRoles }       = require("./src/commands/torneo");
+const { handleAdmin,
+        handleChiteadoButton }      = require("./src/commands/admin");
 const { handleNuevo,
         handleNuevoButton }         = require("./src/commands/nuevo");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
@@ -253,6 +255,7 @@ const client = new Client({
 client.once("clientReady", async () => {
   console.log(`✅ BOT COMPLETO EXLATAM — ${client.user.tag}`);
   voiceEvent.recoverSessions(client);
+  recoverTorneoRoles(client);
   startActividadTask(client);
   startInactividadTask(client);
   await botLog("🟢","Bot iniciado",`Conectado como **${client.user.tag}**`,"auto");
@@ -334,6 +337,7 @@ client.on("interactionCreate", async interaction => {
     await handleInactividadModal(interaction, client);
     await handleTorneoInteraction(interaction, client);
     await handleNuevoButton(interaction, client);
+    await handleChiteadoButton(interaction, client);
     if (interaction.replied || interaction.deferred) return;
 
     if (interaction.isModalSubmit()) {

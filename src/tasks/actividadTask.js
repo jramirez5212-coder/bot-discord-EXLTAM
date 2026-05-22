@@ -134,7 +134,7 @@ async function updateTopEmbed(client) {
     let topText = "";
     ranking.slice(0, TOP_SIZE).forEach(({ member, weekMs, totalMs, enVivo }, i) => {
       topText +=
-        `${medals[i]} **${member.user.username}** ${enVivo ? "🔴" : ""}\n` +
+        `${medals[i]} **${member.user.tag}** ${enVivo ? "🔴" : ""}\n` +
         `┣ Esta semana: \`${msToHours(weekMs)}\`\n` +
         `┗ Total: \`${msToHours(totalMs)}\`\n\n`;
     });
