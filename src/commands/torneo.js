@@ -7,7 +7,7 @@ const { ACTIVITY_ROLE_ID, LOGO_URL, CANAL_CMD_TORNEO, GUILD_ID } = require("../c
 
 const ROL_TORNEO_ID  = "1504721382368481331";
 const COOLDOWN_MS    = 60 * 1000;
-const ESPERA_MS      = 60 * 1000; // 1 minuto por nivel
+const ESPERA_MS      = 15 * 1000; // 15 segundos por nivel
 const cooldowns      = new Map();
 const torneosActivos = new Map();
 
