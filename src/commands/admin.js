@@ -29,13 +29,13 @@ async function handleAdmin(message, client) {
     "!addtime","!removetime","!sethoras","!resetuser","!resetweek",
     "!syncvoz","!status","!sesiones","!forceupdate",
     "!info","!setadv","!clearadv","!listactivos","!listinactivos",
-    "!chiteado","!torneostop"
+    "!chiteado","!torneostop","!reportetorneo"
   ];
   if (!adminCmds.includes(comando)) return;
   if (!isAdmin(message)) return message.reply("❌ No tienes permiso.");
 
   // Comandos sin restricción de canal
-  const sinRestriccion = ["!nuevo","!chiteado","!torneostop","!listactivos","!listinactivos"];
+  const sinRestriccion = ["!nuevo","!chiteado","!torneostop","!reportetorneo","!listactivos","!listinactivos"];
   if (!sinRestriccion.includes(comando) && message.channel.id !== CANAL_CMD_ADMIN) {
     const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_ADMIN}>`);
     setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
@@ -272,7 +272,7 @@ async function handleAdmin(message, client) {
   }
 
   // ── !torneostop ──────────────────────────────────────────────
-  if (comando === "!torneostop") {
+  if (comando === "!torneostop","!reportetorneo") {
     const guild = await client.guilds.fetch(GUILD_ID); await guild.members.fetch();
     const miembros = guild.members.cache.filter(m => m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot);
     const lista = [];
@@ -291,6 +291,108 @@ async function handleAdmin(message, client) {
     return message.reply({ embeds: [new EmbedBuilder().setColor(0xf1c40f)
       .setTitle("🏆 Top participantes en torneos")
       .setDescription(desc || "*Sin datos de torneos.*")
+      .setTimestamp()] });
+  }
+
+  // ── !reportetorneo @usuario ─────────────────────────────────
+  if (comando === "!reportetorneo") {
+    const target = message.mentions.members.first();
+    if (!target) return message.reply("❌ Uso: `!reportetorneo @usuario`");
+
+    const STRIKE1_ID = "1469433892720345352";
+    const STRIKE2_ID = "1469433893428920437";
+    const STRIKE3_ID = "1469433894343278709";
+    const CANAL_SANCIONES_ID = "1469434077433299160";
+
+    const ud = getUser(data, target.id);
+    if (!ud.reportesTorneo) ud.reportesTorneo = 0;
+    ud.reportesTorneo += 1;
+    saveData(data);
+
+    const canalSancion = await client.channels.fetch(CANAL_SANCIONES_ID).catch(()=>null);
+    const reporte = ud.reportesTorneo;
+
+    // Strike 1
+    if (reporte === 1) {
+      try { await target.roles.add(STRIKE1_ID); } catch {}
+      if (canalSancion) await canalSancion.send({ embeds: [new EmbedBuilder()
+        .setColor(0xf39c12).setTitle("⚠️ Reporte de Torneo — Strike 1/3")
+        .setThumbnail(target.user.displayAvatarURL({dynamic:true}))
+        .setDescription(`${target} fue reportado por participar en un torneo sin ser seleccionado.
+
+**Reportes:** \`1/3\`
+Si llega a 2 quedará suspendido de torneos por **5 días**.`)
+        .addFields({name:"👮 Reportado por", value:`${message.author}`, inline:true},{name:"📅 Fecha",value:new Date().toLocaleDateString("es-CO",{timeZone:"America/Bogota"}),inline:true})
+        .setTimestamp()] });
+      try { await target.send({ embeds: [new EmbedBuilder()
+        .setColor(0xf39c12).setTitle("⚠️ Advertencia de Torneo")
+        .setDescription(`Fuiste reportado por participar en un torneo sin haber sido seleccionado. Esto va en contra de las reglas de **EXLATAM**.
+
+**No vuelvas a hacerlo.** Tienes **1/3** reportes.
+Al llegar a 2 quedarás suspendido de torneos por **5 días**.`)
+        .setTimestamp()] }); } catch {}
+    }
+    // Strike 2
+    else if (reporte === 2) {
+      try { await target.roles.add(STRIKE2_ID); } catch {}
+      // Suspender de torneos por 5 días
+      const expiraSuspension = Date.now() + 5 * 24 * 60 * 60 * 1000;
+      ud.suspendidoTorneoHasta = expiraSuspension;
+      saveData(data);
+      setTimeout(async () => {
+        try {
+          const guild = await client.guilds.fetch(GUILD_ID);
+          const m = await guild.members.fetch(target.id);
+          await m.roles.remove(STRIKE2_ID);
+          const d = loadData();
+          if (d[target.id]) { delete d[target.id].suspendidoTorneoHasta; saveData(d); }
+        } catch {}
+      }, 5 * 24 * 60 * 60 * 1000);
+      if (canalSancion) await canalSancion.send({ embeds: [new EmbedBuilder()
+        .setColor(0xe67e22).setTitle("🚨 Reporte de Torneo — Strike 2/3 — SUSPENDIDO")
+        .setThumbnail(target.user.displayAvatarURL({dynamic:true}))
+        .setDescription(`${target} recibió su **segundo reporte**.
+
+🚫 **Suspendido de torneos por 5 días.**
+Si recibe un tercer reporte será **expulsado de la banda**.`)
+        .addFields({name:"👮 Reportado por",value:`${message.author}`,inline:true},{name:"📅 Suspensión hasta",value:`<t:${Math.floor(expiraSuspension/1000)}:F>`,inline:true})
+        .setTimestamp()] });
+      try { await target.send({ embeds: [new EmbedBuilder()
+        .setColor(0xe67e22).setTitle("🚨 Suspensión de Torneos")
+        .setDescription(`Recibiste tu **segundo reporte** por hacer trampa en torneos.
+
+Quedas **suspendido de torneos por 5 días**.
+
+Esta es tu **última oportunidad**. Al tercer reporte serás **expulsado de EXLATAM**.`)
+        .setTimestamp()] }); } catch {}
+    }
+    // Strike 3 — Expulsión
+    else if (reporte >= 3) {
+      try { await target.roles.add(STRIKE3_ID); } catch {}
+      // Quitar todos los roles de actividad
+      try { await target.roles.remove(ACTIVITY_ROLE_ID); } catch {}
+      if (canalSancion) await canalSancion.send({ embeds: [new EmbedBuilder()
+        .setColor(0xe74c3c).setTitle("🚫 Reporte de Torneo — Strike 3 — EXPULSADO")
+        .setThumbnail(target.user.displayAvatarURL({dynamic:true}))
+        .setDescription(`${target} recibió su **tercer reporte** y fue **expulsado de la banda**.
+
+Se removió el rol de actividad automáticamente.`)
+        .addFields({name:"👮 Reportado por",value:`${message.author}`,inline:true})
+        .setTimestamp()] });
+      try { await target.send({ embeds: [new EmbedBuilder()
+        .setColor(0xe74c3c).setTitle("🚫 Expulsado de EXLATAM")
+        .setDescription(`Recibiste **3 reportes** por hacer trampa en torneos.
+
+Fuiste **expulsado de EXLATAM**.
+
+Si crees que hubo un error, contacta al staff.`)
+        .setTimestamp()] }); } catch {}
+    }
+
+    return message.reply({ embeds: [new EmbedBuilder()
+      .setColor(reporte===1?0xf39c12:reporte===2?0xe67e22:0xe74c3c)
+      .setTitle(`✅ Reporte registrado — Strike ${Math.min(reporte,3)}/3`)
+      .setDescription(`${target} tiene **${reporte}/3** reportes de torneo.`)
       .setTimestamp()] });
   }
 

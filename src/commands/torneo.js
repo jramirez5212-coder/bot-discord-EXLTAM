@@ -367,6 +367,14 @@ async function handleTorneoInteraction(interaction, client) {
     if (!interaction.member.roles.cache.has(ACTIVITY_ROLE_ID))
       return interaction.reply({ content: "❌ No tienes el rol de actividad.", ephemeral: true });
 
+    // Verificar si está suspendido de torneos
+    const dataTorneo = loadData();
+    const udTorneo   = dataTorneo[interaction.user.id];
+    if (udTorneo?.suspendidoTorneoHasta && udTorneo.suspendidoTorneoHasta > Date.now()) {
+      const expira = Math.floor(udTorneo.suspendidoTorneoHasta / 1000);
+      return interaction.reply({ content: `🚫 Estás suspendido de torneos hasta <t:${expira}:F>.`, ephemeral: true });
+    }
+
     torneo.inscritos.push(interaction.user.id);
 
     const rowUpdate = new ActionRowBuilder().addComponents(

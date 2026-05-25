@@ -169,7 +169,7 @@ async function checkTopSemanal(client) {
   const fecha = new Date().toLocaleDateString("en-US", {
     timeZone: "America/Bogota", weekday: "long",
   });
-  if (hora !== "00:00" || fecha !== "Monday") return;
+  if (hora !== "00:01" || fecha !== "Monday") return;
   const semanaActual = todayKey();
   if (lastTopWeek === semanaActual) return;
   lastTopWeek = semanaActual;
@@ -218,7 +218,13 @@ async function checkTopSemanal(client) {
     }
 
     saveTops(tops);
-    for (const id in data) data[id].weekMs = 0;
+    for (const id in data) {
+      data[id].weekMs = 0;
+      // Resetear sessionStart para que no cuente horas viejas en la nueva semana
+      if (data[id].sessionStart) {
+        data[id].sessionStart = Date.now();
+      }
+    }
     saveData(data);
     embedTopId = null;
 
