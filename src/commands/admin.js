@@ -102,9 +102,18 @@ async function handleAdmin(message, client) {
 
   // ── !resetweek ───────────────────────────────────────────────
   if (comando === "!resetweek") {
+    const hoy = todayKey();
     let count = 0;
-    for (const id in data) { data[id].weekMs = 0; count++; }
+    for (const id in data) {
+      data[id].weekMs = 0;
+      // Borrar horas del día de hoy para que el embed muestre 0
+      if (data[id].days?.[hoy]) data[id].days[hoy].totalMs = 0;
+      // Resetear sessionStart para que no cuente sesiones viejas
+      if (data[id].sessionStart) data[id].sessionStart = Date.now();
+      count++;
+    }
     saveData(data);
+    client.emit("updateActividadEmbed");
     return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Semana reseteada")
       .setDescription(`Se resetearon las horas semanales de **${count}** usuarios.`).setTimestamp()] });
   }
