@@ -103,13 +103,19 @@ async function handleAdmin(message, client) {
   // ── !resetweek ───────────────────────────────────────────────
   if (comando === "!resetweek") {
     const hoy = todayKey();
+    const ahora = Date.now();
     let count = 0;
+
+    // Limpiar sesiones activas en memoria
+    const { activeSessions } = require("../events/voiceStateUpdate");
+    activeSessions.clear();
+
     for (const id in data) {
       data[id].weekMs = 0;
-      // Borrar horas del día de hoy para que el embed muestre 0
+      // Borrar horas del día de hoy
       if (data[id].days?.[hoy]) data[id].days[hoy].totalMs = 0;
-      // Resetear sessionStart para que no cuente sesiones viejas
-      if (data[id].sessionStart) data[id].sessionStart = Date.now();
+      // Resetear sessionStart
+      if (data[id].sessionStart) data[id].sessionStart = ahora;
       count++;
     }
     saveData(data);
