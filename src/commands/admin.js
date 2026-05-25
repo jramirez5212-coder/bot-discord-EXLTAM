@@ -34,7 +34,9 @@ async function handleAdmin(message, client) {
   if (!adminCmds.includes(comando)) return;
   if (!isAdmin(message)) return message.reply("❌ No tienes permiso.");
 
-  if (message.channel.id !== CANAL_CMD_ADMIN) {
+  // Comandos sin restricción de canal
+  const sinRestriccion = ["!nuevo","!chiteado","!torneostop","!listactivos","!listinactivos"];
+  if (!sinRestriccion.includes(comando) && message.channel.id !== CANAL_CMD_ADMIN) {
     const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_ADMIN}>`);
     setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
     return;
