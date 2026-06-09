@@ -35,8 +35,8 @@ module.exports = {
   MAX_SESSION_MS:     12 * 60 * 60 * 1000,
 
   // ── DÍAS ADVERTENCIAS ─────────────────────────────────────────
-  DIA_ADV_1:   3,
-  DIA_ADV_2:   6,
-  DIA_ADV_3:   11,
-  DIA_EXPULSA: 12,
+  DIA_ADV_1:   1,
+  DIA_ADV_2:   3,
+  DIA_ADV_3:   5,
+  DIA_EXPULSA: 6,
 };

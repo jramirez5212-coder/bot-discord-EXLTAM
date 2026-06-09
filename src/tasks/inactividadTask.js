@@ -87,15 +87,15 @@ async function checkMedianoche(client) {
 
       if (!userData.advertencias) userData.advertencias = 0;
 
-      // Día 3 — Advertencia 1
+      // Día 1 — Advertencia 1
       if (diasSin === DIA_ADV_1 && userData.advertencias < 1) {
         userData.advertencias = 1;
         await enviarSancion(member, canalSancion, 1, diasSin,
-          `Llevas **${diasSin} días** sin conectarte al canal de voz.\nEsta es tu **primera advertencia**.`,
+          `Llevas **${diasSin} día** sin conectarte al canal de voz.\nEsta es tu **primera advertencia**.`,
           0xf39c12, "⚠️");
         await enviarDM(member, diasSin, 1, "Esta es tu primera advertencia por inactividad.");
       }
-      // Día 6 — Advertencia 2
+      // Día 3 — Advertencia 2
       else if (diasSin === DIA_ADV_2 && userData.advertencias < 2) {
         userData.advertencias = 2;
         await enviarSancion(member, canalSancion, 2, diasSin,
@@ -103,7 +103,7 @@ async function checkMedianoche(client) {
           0xe67e22, "🚨");
         await enviarDM(member, diasSin, 2, "Esta es tu segunda advertencia. Conéctate pronto o perderás tu rol.");
       }
-      // Día 11 — Advertencia final
+      // Día 5 — Advertencia final
       else if (diasSin === DIA_ADV_3 && userData.advertencias < 3) {
         userData.advertencias = 3;
         await enviarSancion(member, canalSancion, 3, diasSin,
@@ -111,7 +111,7 @@ async function checkMedianoche(client) {
           0xe74c3c, "🚨");
         await enviarDM(member, diasSin, 3, "🚨 ÚLTIMA ADVERTENCIA. Si no te conectas mañana perderás tu rol definitivamente.");
       }
-      // Día 12 — Quitar rol
+      // Día 6 — Quitar rol
       else if (diasSin >= DIA_EXPULSA) {
         try {
           await member.roles.remove(ACTIVITY_ROLE_ID);

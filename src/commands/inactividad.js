@@ -18,7 +18,6 @@ async function handleInactividad(message) {
   if (!message.member.roles.cache.has(ACTIVITY_ROLE_ID))
     return message.reply("❌ No tienes permiso para usar este comando.");
 
-  // Solo en canal permitido
   if (message.channel.id !== CANAL_CMD_INACTIVO) {
     const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_INACTIVO}>`);
     setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
@@ -38,7 +37,7 @@ async function handleInactividad(message) {
   try { await message.delete(); } catch {}
 
   const embed = new EmbedBuilder()
-    .setColor(0x39FF14).setTitle("📋 Justificación de Inactividad")
+    .setColor(0x39ff3c).setTitle("📋 Justificación de Inactividad")
     .setDescription("Presiona el botón para llenar el formulario de inactividad.")
     .setImage(BANNER_INACTIVIDAD).setTimestamp();
 
@@ -98,29 +97,36 @@ async function handleInactividadModal(interaction, client) {
   const btnMsg = btnMessages.get(interaction.user.id);
   if (btnMsg) { try { await btnMsg.delete(); } catch {} btnMessages.delete(interaction.user.id); }
 
-  // Dar rol de inactivo temporalmente
+  // Quitar rol de actividad y dar rol de inactivo
   try {
     const guild  = await client.guilds.fetch(GUILD_ID);
     const member = await guild.members.fetch(interaction.user.id);
-    await member.roles.add(ROL_INACTIVO_ID);
+    await member.roles.remove(ACTIVITY_ROLE_ID).catch(() => {});
+    await member.roles.add(ROL_INACTIVO_ID).catch(() => {});
 
-    // Quitar el rol cuando expire la fecha
+    // Cuando vence la fecha: devolver rol de actividad y quitar inactivo
     const hastaDate = new Date(hasta + "T00:00:00-05:00"); // Colombia UTC-5
     const msHasta   = hastaDate.getTime() - Date.now();
     if (msHasta > 0) {
       setTimeout(async () => {
-        try { await member.roles.remove(ROL_INACTIVO_ID); } catch {}
-        excusasActivas.delete(interaction.user.id);
+        try {
+          const guildFresh  = await client.guilds.fetch(GUILD_ID);
+          const memberFresh = await guildFresh.members.fetch(interaction.user.id);
+          await memberFresh.roles.add(ACTIVITY_ROLE_ID).catch(() => {});
+          await memberFresh.roles.remove(ROL_INACTIVO_ID).catch(() => {});
+          excusasActivas.delete(interaction.user.id);
+          console.log(`[INACTIVIDAD] Roles restaurados: ${interaction.user.tag}`);
+        } catch(e) { console.error("[INACTIVIDAD] Error restaurando roles:", e.message); }
       }, msHasta);
     }
-  } catch(e) { console.error("[INACTIVIDAD] Error dando rol:", e.message); }
+  } catch(e) { console.error("[INACTIVIDAD] Error manejando roles:", e.message); }
 
   // Embed en canal de inactividad
   try {
     const canal = await client.channels.fetch(CANAL_INACTIVIDAD_ID);
     if (canal) {
       const embed = new EmbedBuilder()
-        .setColor(0x39FF14).setTitle("📋 Justificación de Inactividad")
+        .setColor(0x39ff3c).setTitle("📋 Justificación de Inactividad")
         .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
         .setImage(BANNER_INACTIVIDAD)
         .addFields(
@@ -136,7 +142,7 @@ async function handleInactividadModal(interaction, client) {
   } catch(e) { console.error("[INACTIVIDAD] Error:", e.message); }
 
   await interaction.reply({
-    content: `✅ Justificación enviada. Se te asignó el rol de inactivo hasta el **${hasta}**.`,
+    content: `✅ Inactividad registrada del **${desde}** al **${hasta}**.\nSe te quitó el rol de actividad y se te dio el rol de inactivo. Al vencer la fecha tus roles vuelven automáticamente. 🙏`,
     ephemeral: true
   });
 }

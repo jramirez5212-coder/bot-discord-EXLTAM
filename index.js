@@ -26,6 +26,7 @@ const { handleAdmin,
         handleChiteadoButton }      = require("./src/commands/admin");
 const { handleNuevo,
         handleNuevoButton }         = require("./src/commands/nuevo");
+const { handleTandas }             = require("./src/commands/tandas");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
 
@@ -289,6 +290,7 @@ client.on("messageCreate", async message => {
     await handleTorneo(message);
     await handleAdmin(message, client);
     await handleNuevo(message, client);
+    await handleTandas(message);
 
     if (message.content.trim().toLowerCase() === "!panel") {
       if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos.").catch(()=>null);
