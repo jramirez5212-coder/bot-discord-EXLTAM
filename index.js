@@ -70,9 +70,9 @@ const configViejo = {
 const questions = ["Nombre:","Residencia/País?:","Edad (**mínimo 15**):","5 Clips o 1HG:","Foto de las horas de FiveM:","Foto KD (**mínimo 1.8**):","Link Steam Público:","Tiempo Disponible?:"];
 
 const ticketTypes = {
-  reportes: { label:"Reportes", emoji:"⛔",  categoryId:"1516259251750834226", roleId:"1469433860293918921", description:"⚠️ **Cuéntanos en qué te podemos ayudar.**\n\n~ Usuario reportado:\n~ Motivo del reporte:\n~ Pruebas / clips:\n~ Explicación completa de lo sucedido:" },
+  reportes: { label:"Reportes", emoji:"⛔",  categoryId:"1516259251750834226", roleId:"1516258948871753902", description:"⚠️ **Cuéntanos en qué te podemos ayudar.**\n\n~ Usuario reportado:\n~ Motivo del reporte:\n~ Pruebas / clips:\n~ Explicación completa de lo sucedido:" },
   compras:  { label:"Compras",  emoji:"<:emoji_24:1486354461558308944>", categoryId:"1516259250379161641", roleId:"1481851324395163759", description:"⚠️ **Mientras tanto dinos qué te gustaría comprar de la tienda:**\n\n~ Producto:\n~ Cantidad:\n~ Método de pago:\n~ ¿Está en stock?:" },
-  partners: { label:"Partners", emoji:"🤝", categoryId:"1516259252967051284", roleId:"1469433860293918921", description:"⚠️ **Solicitud de partner**\n\n~ Nombre del servidor:\n~ Invitación:\n~ Miembros:\n~ ¿Qué tipo de alianza quieres hacer?:\n~ ¿Qué puedes ofrecer como partner?:" }
+  partners: { label:"Partners", emoji:"🤝", categoryId:"1516259252967051284", roleId:"1516258948871753902", description:"⚠️ **Solicitud de partner**\n\n~ Nombre del servidor:\n~ Invitación:\n~ Miembros:\n~ ¿Qué tipo de alianza quieres hacer?:\n~ ¿Qué puedes ofrecer como partner?:" }
 };
 
 // Tickets del servidor VIEJO — "Recompensa" en lugar de "Reportes"
@@ -163,7 +163,7 @@ const ticketPanel = (guildId) => {
     ? "<:emoji_6:1485010432514326558> __Recompensa:__ Reclamar alguna recompensa."
     : "<:emoji_6:1485010432514326558> __Reportes:__ Reportar alguna inconformidad.";
   return {
-    embeds:[new EmbedBuilder().setColor(COLOR).setTitle("<:emoji_16:1486354271351078923> SISTEMA TICKETS EXLATAM").setDescription(`<:emoji_13:1485010590358568970>  *Si deseas abrir algun ticket lo puedes hacer presionando los botones de abajo:*\n\n\`\`\`INFORMACION IMPORTANTE\`\`\`\n<:emoji_6:1485010432514326558> __Postulaciones:__ Usa el panel de postulaciones para iniciar por DM.\n${lineaDesc}\n<:emoji_6:1485010432514326558> __Compras:__ Compras en nuestra tienda.\n<:emoji_6:1485010432514326558> __Partners:__ Alianzas entre discord (PUBLICIDAD).\n\n👇 **SELECCIONA EL TICKET QUE NECESITAS** 👇`).setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"TICKETS"})],
+    embeds:[new EmbedBuilder().setColor(COLOR).setTitle("<:emoji_16:1486354271351078923> SISTEMA TICKETS EXLATAM").setDescription(`<:emoji_13:1485010590358568970>  *Si deseas abrir algun ticket lo puedes hacer presionando los botones de abajo:*\n\n\`\`\`INFORMACION IMPORTANTE\`\`\`\n${lineaDesc}\n<:emoji_6:1485010432514326558> __Compras:__ Compras en nuestra tienda.\n<:emoji_6:1485010432514326558> __Partners:__ Alianzas entre discord (PUBLICIDAD).\n\n👇 **SELECCIONA EL TICKET QUE NECESITAS** 👇`).setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"TICKETS"})],
     components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(customId).setLabel(label).setEmoji(emoji).setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("ticket_compras").setLabel("Compras").setEmoji("🛍️").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("ticket_partners").setLabel("Partners").setEmoji("🤝").setStyle(ButtonStyle.Primary))]
   };
 };
