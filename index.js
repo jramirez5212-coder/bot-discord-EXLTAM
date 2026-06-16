@@ -47,7 +47,7 @@ const config = {
   guildName: "EXLATAM / #300K?",
   guildId: GUILD_NUEVO_ID,
   welcomeChannelId: "1516259293878550589",
-  staffBandasRoleId: "1516435088915562679",
+  staffBandasRoleId: "1516258946715881592",
   postulacionesPanelChannelId: "1516259307845451917",
   postulacionesChannelId: "1516259309237964971",
   categoriaAprobadosId: "1516259245979603034",
@@ -247,8 +247,7 @@ async function createResultTicket(userId, status, staffUser) {
       permissionOverwrites: [
         {id:guild.roles.everyone.id, deny:[PermissionFlagsBits.ViewChannel]},
         {id:userId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},
-        {id:config.staffBandasRoleId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.ManageChannels,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},
-        {id:"1469433858352222379", allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]}
+        {id:config.staffBandasRoleId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.ManageChannels,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]}
       ]
     });
 
@@ -414,7 +413,7 @@ client.on("interactionCreate", async interaction => {
     if (!interaction.isButton()) return;
 
     // Botón solicitar SS
-    const ENTREVISTADOR_ROLE_ID = "1469433858352222379";
+    const ENTREVISTADOR_ROLE_ID = "1516258946715881592";
     const canSolicitar = i => canStaff(i) || i.member?.roles?.cache?.has(ENTREVISTADOR_ROLE_ID);
 
     if (interaction.customId === "solicitar_ss") {
