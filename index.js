@@ -70,14 +70,14 @@ const configViejo = {
 const questions = ["Nombre:","Residencia/País?:","Edad (**mínimo 15**):","5 Clips o 1HG:","Foto de las horas de FiveM:","Foto KD (**mínimo 1.8**):","Link Steam Público:","Tiempo Disponible?:"];
 
 const ticketTypes = {
-  recompensa: { label:"Recompensa", emoji:"🎁",  categoryId:"1516259251750834226", roleId:"1469433860293918921", description:"⚠️ **Cuéntanos qué recompensa quieres reclamar.**\n\n~ ¿Qué recompensa quieres reclamar?:\n~ ¿Cómo la obtuviste? (clips/pruebas):\n~ Usuario que la otorgó (si aplica):\n~ Explicación completa:" },
-  compras:    { label:"Compras",    emoji:"<:emoji_24:1486354461558308944>", categoryId:"1516259250379161641", roleId:"1481851324395163759", description:"⚠️ **Mientras tanto dinos qué te gustaría comprar de la tienda:**\n\n~ Producto:\n~ Cantidad:\n~ Método de pago:\n~ ¿Está en stock?:" },
-  partners:   { label:"Partners",   emoji:"🤝", categoryId:"1516259252967051284", roleId:"1469433860293918921", description:"⚠️ **Solicitud de partner**\n\n~ Nombre del servidor:\n~ Invitación:\n~ Miembros:\n~ ¿Qué tipo de alianza quieres hacer?:\n~ ¿Qué puedes ofrecer como partner?:" }
+  reportes: { label:"Reportes", emoji:"⛔",  categoryId:"1516259251750834226", roleId:"1469433860293918921", description:"⚠️ **Cuéntanos en qué te podemos ayudar.**\n\n~ Usuario reportado:\n~ Motivo del reporte:\n~ Pruebas / clips:\n~ Explicación completa de lo sucedido:" },
+  compras:  { label:"Compras",  emoji:"<:emoji_24:1486354461558308944>", categoryId:"1516259250379161641", roleId:"1481851324395163759", description:"⚠️ **Mientras tanto dinos qué te gustaría comprar de la tienda:**\n\n~ Producto:\n~ Cantidad:\n~ Método de pago:\n~ ¿Está en stock?:" },
+  partners: { label:"Partners", emoji:"🤝", categoryId:"1516259252967051284", roleId:"1469433860293918921", description:"⚠️ **Solicitud de partner**\n\n~ Nombre del servidor:\n~ Invitación:\n~ Miembros:\n~ ¿Qué tipo de alianza quieres hacer?:\n~ ¿Qué puedes ofrecer como partner?:" }
 };
 
-// Tickets del servidor VIEJO (mismos tipos, IDs distintos)
+// Tickets del servidor VIEJO — "Recompensa" en lugar de "Reportes"
 const ticketTypesViejo = {
-  recompensa: { label:"Recompensa", emoji:"🎁",  categoryId:"1469433997191811308", roleId:"1516433396551651441", description:ticketTypes.recompensa.description },
+  recompensa: { label:"Recompensa", emoji:"🎁",  categoryId:"1469433997191811308", roleId:"1516433396551651441", description:"⚠️ **Cuéntanos qué recompensa quieres reclamar.**\n\n~ ¿Qué recompensa quieres reclamar?:\n~ ¿Cómo la obtuviste? (clips/pruebas):\n~ Usuario que la otorgó (si aplica):\n~ Explicación completa:" },
   compras:    { label:"Compras",    emoji:"<:emoji_24:1486354461558308944>", categoryId:"1469433995371483320", roleId:"1516433295905132796", description:ticketTypes.compras.description },
   partners:   { label:"Partners",   emoji:"🤝", categoryId:"1469433998722732279", roleId:"1516433396551651441", description:ticketTypes.partners.description }
 };
@@ -154,10 +154,19 @@ const buildPanel = () => ({
   components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("start_postulacion").setLabel("Iniciar postulación").setEmoji("📝").setStyle(ButtonStyle.Success))]
 });
 
-const ticketPanel = () => ({
-  embeds:[new EmbedBuilder().setColor(COLOR).setTitle("<:emoji_16:1486354271351078923> SISTEMA TICKETS EXLATAM").setDescription("<:emoji_13:1485010590358568970>  *Si deseas abrir algun ticket lo puedes hacer presionando los botones de abajo:*\n\n```INFORMACION IMPORTANTE```\n<:emoji_6:1485010432514326558> __Postulaciones:__ Usa el panel de postulaciones para iniciar por DM.\n<:emoji_6:1485010432514326558> __Recompensa:__ Reclamar alguna recompensa.\n<:emoji_6:1485010432514326558> __Compras:__ Compras en nuestra tienda.\n<:emoji_6:1485010432514326558> __Partners:__ Alianzas entre discord (PUBLICIDAD).\n\n👇 **SELECCIONA EL TICKET QUE NECESITAS** 👇").setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"TICKETS"})],
-  components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("ticket_recompensa").setLabel("Recompensa").setEmoji("🎁").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("ticket_compras").setLabel("Compras").setEmoji("🛍️").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("ticket_partners").setLabel("Partners").setEmoji("🤝").setStyle(ButtonStyle.Primary))]
-});
+const ticketPanel = (guildId) => {
+  const esViejo = guildId === GUILD_VIEJO_ID;
+  const label   = esViejo ? "Recompensa" : "Reportes";
+  const emoji   = esViejo ? "🎁" : "⛔";
+  const customId = esViejo ? "ticket_recompensa" : "ticket_reportes";
+  const lineaDesc = esViejo
+    ? "<:emoji_6:1485010432514326558> __Recompensa:__ Reclamar alguna recompensa."
+    : "<:emoji_6:1485010432514326558> __Reportes:__ Reportar alguna inconformidad.";
+  return {
+    embeds:[new EmbedBuilder().setColor(COLOR).setTitle("<:emoji_16:1486354271351078923> SISTEMA TICKETS EXLATAM").setDescription(`<:emoji_13:1485010590358568970>  *Si deseas abrir algun ticket lo puedes hacer presionando los botones de abajo:*\n\n\`\`\`INFORMACION IMPORTANTE\`\`\`\n<:emoji_6:1485010432514326558> __Postulaciones:__ Usa el panel de postulaciones para iniciar por DM.\n${lineaDesc}\n<:emoji_6:1485010432514326558> __Compras:__ Compras en nuestra tienda.\n<:emoji_6:1485010432514326558> __Partners:__ Alianzas entre discord (PUBLICIDAD).\n\n👇 **SELECCIONA EL TICKET QUE NECESITAS** 👇`).setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"TICKETS"})],
+    components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(customId).setLabel(label).setEmoji(emoji).setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("ticket_compras").setLabel("Compras").setEmoji("🛍️").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("ticket_partners").setLabel("Partners").setEmoji("🤝").setStyle(ButtonStyle.Primary))]
+  };
+};
 
 async function botLog(emoji,titulo,detalle="",origen="auto",ejecutadoPor=null){try{const ch=await client.channels.fetch(config.botLogsChannelId).catch(()=>null);if(!ch?.isTextBased())return;const embed=new EmbedBuilder().setColor(origen==="manual"?0xf0a500:COLOR).setAuthor({name:"EXLATAM Bot — Log",iconURL:config.logoUrl}).setTitle(`${emoji} ${titulo}`).addFields({name:"Origen",value:origen==="manual"?`🖐️ Manual${ejecutadoPor?` — ${ejecutadoPor}`:""}` :"🤖 Automático",inline:true},{name:"Hora",value:colombiaTime(),inline:true},{name:"Fecha",value:colombiaDate(),inline:true}).setFooter({text:config.guildName,iconURL:config.logoUrl}).setTimestamp();if(detalle)embed.setDescription(detalle);await ch.send({embeds:[embed]});}catch(e){console.log("⚠️ botLog:",e.message);}}
 
@@ -272,7 +281,7 @@ async function startFeedback(userId,status,staffId){const apps=loadApps();apps[u
 
 async function sendFeedbackToStaff(userId){const apps=loadApps();const app=apps[userId];if(!app?.feedback)return;const ch=await client.channels.fetch(config.postulacionesChannelId).catch(()=>null);const user=await client.users.fetch(userId).catch(()=>null);if(!ch?.isTextBased()||!user)return;await ch.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"Feedback de postulación",iconURL:config.logoUrl}).setTitle("⭐ Calificación recibida").addFields({name:"Usuario",value:`<@${userId}>`,inline:true},{name:"Estado",value:app.feedback.status||"No definido",inline:true},{name:"Staff",value:`<@${app.feedback.staffId}>`,inline:true},{name:"Calificación",value:app.feedback.answers[0]||"Sin calificación",inline:false},{name:"Sugerencia / Comentario",value:app.feedback.answers[1]||"Sin comentario",inline:false}).setThumbnail(user.displayAvatarURL({dynamic:true})).setTimestamp()]});await botLog("⭐","Feedback recibido",`<@${userId}> — ${app.feedback.answers[0]||"?"}`,"auto");delete app.feedback;apps[userId]=app;saveApps(apps);}
 
-async function sendTicketPanelViejo(){const ch=await client.channels.fetch(configViejo.ticketPanelChannelId).catch(()=>null);if(!ch?.isTextBased())return;const meta=loadMeta();if(meta.ticketPanelViejoMessageId){const old=await ch.messages.fetch(meta.ticketPanelViejoMessageId).catch(()=>null);if(old){await old.edit(ticketPanel());return;}}const m=await ch.send(ticketPanel());meta.ticketPanelViejoMessageId=m.id;saveMeta(meta);}
+async function sendTicketPanelViejo(){const ch=await client.channels.fetch(configViejo.ticketPanelChannelId).catch(()=>null);if(!ch?.isTextBased())return;const meta=loadMeta();if(meta.ticketPanelViejoMessageId){const old=await ch.messages.fetch(meta.ticketPanelViejoMessageId).catch(()=>null);if(old){await old.edit(ticketPanel(GUILD_VIEJO_ID));return;}}const m=await ch.send(ticketPanel(GUILD_VIEJO_ID));meta.ticketPanelViejoMessageId=m.id;saveMeta(meta);}
 
 const client = new Client({
   intents:[GatewayIntentBits.Guilds,GatewayIntentBits.GuildMembers,GatewayIntentBits.GuildVoiceStates,GatewayIntentBits.GuildMessages,GatewayIntentBits.MessageContent,GatewayIntentBits.DirectMessages],
@@ -343,7 +352,7 @@ client.on("messageCreate", async message => {
     }
     if (message.content === "!paneltickets") {
       if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) return message.reply("No tienes permisos.");
-      await message.channel.send(ticketPanel());
+      await message.channel.send(ticketPanel(message.guild.id));
       return message.reply("✅ Panel enviado.");
     }
     return;
