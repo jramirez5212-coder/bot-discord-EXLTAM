@@ -485,8 +485,8 @@ client.on("interactionCreate", async interaction => {
     if (!interaction.customId.startsWith("ticket_")) return;
     const type=interaction.customId.replace("ticket_","");const types=getTicketTypesFor(interaction.guild.id);const ticket=types[type];if(!ticket)return;
 
-    // Botón Compras: ya no crea ticket, manda mensaje con link a la shop
-    if (type === "compras") {
+    // Botón Compras: en el servidor NUEVO manda mensaje de shop (no crea ticket). En el VIEJO abre ticket normal.
+    if (type === "compras" && interaction.guild.id !== GUILD_VIEJO_ID) {
       const embedShop = new EmbedBuilder()
         .setColor(COLOR)
         .setTitle("🛍️ NUESTRA SHOP")
