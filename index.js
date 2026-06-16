@@ -71,15 +71,15 @@ const questions = ["Nombre:","Residencia/País?:","Edad (**mínimo 15**):","5 Cl
 
 const ticketTypes = {
   reportes: { label:"Reportes", emoji:"⛔",  categoryId:"1516259251750834226", roleId:"1516258948871753902", description:"⚠️ **Cuéntanos en qué te podemos ayudar.**\n\n~ Usuario reportado:\n~ Motivo del reporte:\n~ Pruebas / clips:\n~ Explicación completa de lo sucedido:" },
-  compras:  { label:"Compras",  emoji:"<:emoji_24:1486354461558308944>", categoryId:"1516259250379161641", roleId:"1481851324395163759", description:"⚠️ **Mientras tanto dinos qué te gustaría comprar de la tienda:**\n\n~ Producto:\n~ Cantidad:\n~ Método de pago:\n~ ¿Está en stock?:" },
+  compras:  { label:"Compras",  emoji:"<:emoji_24:1486354461558308944>", categoryId:"1516259250379161641", roleId:"1516258940411842751", description:"⚠️ **Mientras tanto dinos qué te gustaría comprar de la tienda:**\n\n~ Producto:\n~ Cantidad:\n~ Método de pago:\n~ ¿Está en stock?:" },
   partners: { label:"Partners", emoji:"🤝", categoryId:"1516259252967051284", roleId:"1516258948871753902", description:"⚠️ **Solicitud de partner**\n\n~ Nombre del servidor:\n~ Invitación:\n~ Miembros:\n~ ¿Qué tipo de alianza quieres hacer?:\n~ ¿Qué puedes ofrecer como partner?:" }
 };
 
 // Tickets del servidor VIEJO — "Recompensa" en lugar de "Reportes"
 const ticketTypesViejo = {
-  recompensa: { label:"Recompensa", emoji:"🎁",  categoryId:"1469433997191811308", roleId:"1516433396551651441", description:"⚠️ **Cuéntanos qué recompensa quieres reclamar.**\n\n~ ¿Qué recompensa quieres reclamar?:\n~ ¿Cómo la obtuviste? (clips/pruebas):\n~ Usuario que la otorgó (si aplica):\n~ Explicación completa:" },
-  compras:    { label:"Compras",    emoji:"<:emoji_24:1486354461558308944>", categoryId:"1469433995371483320", roleId:"1516433295905132796", description:ticketTypes.compras.description },
-  partners:   { label:"Partners",   emoji:"🤝", categoryId:"1469433998722732279", roleId:"1516433396551651441", description:ticketTypes.partners.description }
+  recompensa: { label:"Recompensa", emoji:"🎁",  categoryId:"1469433997191811308", roleId:"1481851324395163759", description:"⚠️ **Cuéntanos qué recompensa quieres reclamar.**\n\n~ ¿Qué recompensa quieres reclamar?:\n~ ¿Cómo la obtuviste? (clips/pruebas):\n~ Usuario que la otorgó (si aplica):\n~ Explicación completa:" },
+  compras:    { label:"Compras",    emoji:"<:emoji_24:1486354461558308944>", categoryId:"1469433995371483320", roleId:"1481851324395163759", description:ticketTypes.compras.description },
+  partners:   { label:"Partners",   emoji:"🤝", categoryId:"1469433998722732279", roleId:"1469433860293918921", description:ticketTypes.partners.description }
 };
 
 const getTicketTypesFor = guildId => guildId === GUILD_VIEJO_ID ? ticketTypesViejo : ticketTypes;
@@ -484,6 +484,20 @@ client.on("interactionCreate", async interaction => {
 
     if (!interaction.customId.startsWith("ticket_")) return;
     const type=interaction.customId.replace("ticket_","");const types=getTicketTypesFor(interaction.guild.id);const ticket=types[type];if(!ticket)return;
+
+    // Botón Compras: ya no crea ticket, manda mensaje con link a la shop
+    if (type === "compras") {
+      const embedShop = new EmbedBuilder()
+        .setColor(COLOR)
+        .setTitle("🛍️ NUESTRA SHOP")
+        .setDescription("**EXSHOP.GG** <:ex:1516310233956483092>\n\nEntra a nuestra tienda para ver los productos disponibles 👇")
+        .setThumbnail(config.logoUrl);
+      const btnShop = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setLabel("Ir a la Shop").setStyle(ButtonStyle.Link).setURL("https://discord.gg/USVCfqmB3S")
+      );
+      return interaction.reply({embeds:[embedShop], components:[btnShop], ephemeral:true});
+    }
+
     const guildNombre = interaction.guild.id===GUILD_VIEJO_ID ? configViejo.guildName : config.guildName;
     const existing=interaction.guild.channels.cache.find(ch=>ch.topic?.includes(`ticketOwner:${interaction.user.id}`)&&ch.topic?.includes(`ticketType:${type}`));
     if(existing)return interaction.reply({content:`Ya tienes un ticket: ${existing}`,ephemeral:true});
