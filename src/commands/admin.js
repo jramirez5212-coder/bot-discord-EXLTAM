@@ -287,7 +287,7 @@ async function handleAdmin(message, client) {
   }
 
   // ── !torneostop ──────────────────────────────────────────────
-  if (comando === "!torneostop") {
+  if (comando === "!torneostop","!reportetorneo") {
     const guild = await client.guilds.fetch(GUILD_ID); await guild.members.fetch();
     const miembros = guild.members.cache.filter(m => m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot);
     const lista = [];

@@ -1,4 +1,5 @@
-const { EmbedBuilder }                                  = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder,
+        ButtonBuilder, ButtonStyle }                    = require("discord.js");
 const { loadData, saveData, getUser, todayKey,
         horaMinutoColombia }                            = require("../utils/dataManager");
 const { msToHours }                                     = require("../utils/format");
@@ -111,59 +112,47 @@ async function checkMedianoche(client) {
           0xe74c3c, "🚨");
         await enviarDM(member, diasSin, 3, "🚨 ÚLTIMA ADVERTENCIA. Si no te conectas mañana perderás tu rol definitivamente.");
       }
-      // Día 6 — Quitar rol
-      else if (diasSin >= DIA_EXPULSA) {
-        try {
-          await member.roles.remove(ACTIVITY_ROLE_ID);
-          userData.advertencias = 0;
+      // Día 6 — Pedir confirmación al staff antes de expulsar
+      else if (diasSin >= DIA_EXPULSA && !userData.pendienteExpulsion) {
+        userData.pendienteExpulsion = true;
 
-          if (canalLogs) {
-            const embed = new EmbedBuilder()
-              .setColor(0xe74c3c)
-              .setTitle("🚫 Rol de Actividad Removido")
-              .setThumbnail(member.user.displayAvatarURL())
-              .setDescription(
-                `**${member.user.tag}** lleva **${diasSin} días** sin actividad.\n\n` +
-                `✅ Rol removido automáticamente.\n\n` +
-                `Revisar roles adicionales si aplica.`
-              )
-              .addFields(
-                { name: "⚠️ Advertencias",  value: "3 / 3",       inline: true },
-                { name: "📉 Días inactivo", value: `${diasSin}d`,  inline: true },
-                { name: "📅 Fecha",         value: fechaHoy,       inline: true },
-              )
-              .setTimestamp();
+        if (canalLogs) {
+          const embed = new EmbedBuilder()
+            .setColor(0xe74c3c)
+            .setTitle("🚫 ¿Expulsar del Rol de Actividad?")
+            .setThumbnail(member.user.displayAvatarURL())
+            .setDescription(
+              `**${member.user.tag}** lleva **${diasSin} días** sin actividad y agotó sus 3 advertencias.\n\n` +
+              `Staff: decide qué hacer con este miembro.`
+            )
+            .addFields(
+              { name: "⚠️ Advertencias",  value: "3 / 3",       inline: true },
+              { name: "📉 Días inactivo", value: `${diasSin}d`,  inline: true },
+              { name: "📅 Fecha",         value: fechaHoy,       inline: true },
+            )
+            .setFooter({ text: `ID: ${member.id}` })
+            .setTimestamp();
 
-            // Mención al staff FUERA del embed para que llegue la notificación
-            await canalLogs.send({
-              content: `<@&${STAFF_ROLE_ID}> revisar roles adicionales de ${member} si aplica.`,
-              embeds:  [embed]
-            });
-          }
-
-          if (canalAdv) {
-            try {
-              await canalAdv.send(
-                `🚫 ${member} fue **expulsado del rol de actividad** por **${diasSin} días** de inactividad.`
-              );
-            } catch {}
-          }
+          const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`expulsar_inactivo:${member.id}`)
+              .setLabel("Expulsar del rol")
+              .setStyle(ButtonStyle.Danger)
+              .setEmoji("🚫"),
+            new ButtonBuilder()
+              .setCustomId(`restablecer_inactivo:${member.id}`)
+              .setLabel("Restablecer advertencias")
+              .setStyle(ButtonStyle.Success)
+              .setEmoji("♻️"),
+          );
 
           try {
-            await member.send({ embeds: [new EmbedBuilder()
-              .setColor(0xe74c3c)
-              .setTitle("🚫 Rol de Actividad Removido")
-              .setDescription(
-                `Hola **${member.user.username}**,\n\n` +
-                `Tu rol fue **removido** por **${diasSin} días** de inactividad.\n\n` +
-                `Habla con el staff si deseas recuperarlo. 🙏`
-              )
-              .setTimestamp()] });
+            await canalLogs.send({
+              content: `<@&${STAFF_ROLE_ID}> decisión pendiente sobre ${member}.`,
+              embeds:  [embed],
+              components: [row],
+            });
           } catch {}
-
-          console.log(`[INACTIVIDAD] Rol removido: ${member.user.tag} (${diasSin}d)`);
-        } catch (e) {
-          console.error(`[INACTIVIDAD] Error:`, e);
         }
       }
 
