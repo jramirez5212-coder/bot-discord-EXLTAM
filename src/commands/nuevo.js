@@ -14,8 +14,24 @@ const ROLES_NUEVO = [
 ];
 
 const CANAL_BIENVENIDA_NUEVO = "1516662918664683561";
+const CANAL_VIDEO_TUTORIAL   = "1516684343010136094";
 const cooldowns = new Map();
 const COOLDOWN_MS = 10 * 1000;
+
+// Busca el adjunto de video más reciente en el canal fijo de tutorial
+async function getTutorialVideoUrl(client) {
+  try {
+    const canal = await client.channels.fetch(CANAL_VIDEO_TUTORIAL);
+    const mensajes = await canal.messages.fetch({ limit: 20 });
+    for (const msg of mensajes.values()) {
+      const video = msg.attachments.find(a => a.contentType?.startsWith("video/") || a.name?.endsWith(".mp4"));
+      if (video) return video.url;
+    }
+  } catch (e) {
+    console.error("[NUEVO] Error obteniendo video tutorial:", e.message);
+  }
+  return null;
+}
 
 // Mensaje DM completo
 function buildDMEmbed(member) {
@@ -117,6 +133,39 @@ async function handleNuevo(message, client) {
     console.error("[NUEVO] Error enviando DM:", e.message);
     await message.reply(`⚠️ No pude enviar el DM a ${target} (privados cerrados). Roles asignados igualmente.`);
   }
+
+  // Enviar tutorial en el mismo canal donde se usó el comando
+  try {
+    const videoUrl = await getTutorialVideoUrl(client);
+    const rowTutorial = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`tutorial_claro:${target.id}`)
+        .setLabel("✅ Todo claro")
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`tutorial_dudas:${target.id}`)
+        .setLabel("❓ Tengo dudas")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    const embedTutorial = new EmbedBuilder()
+      .setColor(0x39FF14)
+      .setTitle("🎬 Tutorial de Discord — EXLATAM")
+      .setDescription(
+        `${target}, antes de empezar mira el **tutorial completo** sobre cómo funciona el servidor.\n\n` +
+        `📺 **Ve el video completo** para entender canales, comandos y reglas.\n\n` +
+        (videoUrl ? "" : "⚠️ *No se encontró el video en este momento, avisa al staff.*")
+      )
+      .setTimestamp();
+
+    await message.channel.send({
+      content: videoUrl || undefined,
+      embeds:  [embedTutorial],
+      components: [rowTutorial]
+    });
+  } catch(e) {
+    console.error("[NUEVO] Error enviando tutorial:", e.message);
+  }
 }
 
 // Cuando el usuario presiona "Leído"
@@ -164,4 +213,32 @@ async function handleNuevoButton(interaction, client) {
   }
 }
 
-module.exports = { handleNuevo, handleNuevoButton };
+// Botones del tutorial: "Todo claro" / "Tengo dudas"
+async function handleTutorialButton(interaction, client) {
+  if (!interaction.isButton()) return;
+  const isClaro = interaction.customId.startsWith("tutorial_claro:");
+  const isDudas = interaction.customId.startsWith("tutorial_dudas:");
+  if (!isClaro && !isDudas) return;
+
+  const ownerId = interaction.customId.split(":")[1];
+  if (interaction.user.id !== ownerId)
+    return interaction.reply({ content: "❌ Este botón no es para ti.", ephemeral: true });
+
+  if (isClaro) {
+    try {
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId(`tutorial_claro:${ownerId}`).setLabel("✅ Todo claro").setStyle(ButtonStyle.Success).setDisabled(true),
+        new ButtonBuilder().setCustomId(`tutorial_dudas:${ownerId}`).setLabel("❓ Tengo dudas").setStyle(ButtonStyle.Danger).setDisabled(true)
+      );
+      await interaction.update({ components: [row] });
+    } catch {}
+    return interaction.followUp({ content: `✅ ${interaction.user} entendió el tutorial. ¡Bienvenido!`, ephemeral: false });
+  }
+
+  // Tengo dudas — notificar al staff
+  try {
+    await interaction.reply({ content: `❓ <@&${STAFF_ROLE_ID}> ${interaction.user} tiene dudas sobre el tutorial del servidor, por favor ayúdenle.`, ephemeral: false });
+  } catch {}
+}
+
+module.exports = { handleNuevo, handleNuevoButton, handleTutorialButton };

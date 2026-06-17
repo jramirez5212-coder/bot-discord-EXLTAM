@@ -25,7 +25,8 @@ const { handleTorneo,
 const { handleAdmin,
         handleChiteadoButton }      = require("./src/commands/admin");
 const { handleNuevo,
-        handleNuevoButton }         = require("./src/commands/nuevo");
+        handleNuevoButton,
+        handleTutorialButton }      = require("./src/commands/nuevo");
 const { handleTandas }             = require("./src/commands/tandas");
 const { handleInactividadDecision } = require("./src/commands/inactividadDecision");
 const { handleMigrarRoles }        = require("./src/commands/migrarRoles");
@@ -391,6 +392,7 @@ client.on("interactionCreate", async interaction => {
     await handleInactividadModal(interaction, client);
     await handleTorneoInteraction(interaction, client);
     await handleNuevoButton(interaction, client);
+    await handleTutorialButton(interaction, client);
     await handleChiteadoButton(interaction, client);
     await handleInactividadDecision(interaction, client);
     if (interaction.replied || interaction.deferred) return;
