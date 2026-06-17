@@ -19,13 +19,13 @@ const cooldowns = new Map();
 const COOLDOWN_MS = 10 * 1000;
 
 // Busca el adjunto de video más reciente en el canal fijo de tutorial
-async function getTutorialVideoUrl(client) {
+async function getTutorialVideoAttachment(client) {
   try {
     const canal = await client.channels.fetch(CANAL_VIDEO_TUTORIAL);
     const mensajes = await canal.messages.fetch({ limit: 20 });
     for (const msg of mensajes.values()) {
       const video = msg.attachments.find(a => a.contentType?.startsWith("video/") || a.name?.endsWith(".mp4"));
-      if (video) return video.url;
+      if (video) return video;
     }
   } catch (e) {
     console.error("[NUEVO] Error obteniendo video tutorial:", e.message);
@@ -136,7 +136,7 @@ async function handleNuevo(message, client) {
 
   // Enviar tutorial en el mismo canal donde se usó el comando
   try {
-    const videoUrl = await getTutorialVideoUrl(client);
+    const videoAttachment = await getTutorialVideoAttachment(client);
     const rowTutorial = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId(`tutorial_claro:${target.id}`)
@@ -154,15 +154,20 @@ async function handleNuevo(message, client) {
       .setDescription(
         `${target}, antes de empezar mira el **tutorial completo** sobre cómo funciona el servidor.\n\n` +
         `📺 **Ve el video completo** para entender canales, comandos y reglas.\n\n` +
-        (videoUrl ? "" : "⚠️ *No se encontró el video en este momento, avisa al staff.*")
+        (videoAttachment ? "" : "⚠️ *No se encontró el video en este momento, avisa al staff.*")
       )
       .setTimestamp();
 
     await message.channel.send({
-      content: videoUrl || undefined,
       embeds:  [embedTutorial],
       components: [rowTutorial]
     });
+
+    // El video se manda como link plano en su propio mensaje, igual que las imágenes
+    // de postulación — así Discord lo embebe con reproductor nativo.
+    if (videoAttachment) {
+      try { await message.channel.send({ content: videoAttachment.url }); } catch {}
+    }
   } catch(e) {
     console.error("[NUEVO] Error enviando tutorial:", e.message);
   }
