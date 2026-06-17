@@ -1,17 +1,19 @@
 const {
   EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle
 } = require("discord.js");
-const { STAFF_ROLE_ID, LOGO_URL } = require("../config");
+const { STAFF_ROLE_ID, LOGO_URL,
+        CANAL_CMD_HORAS, CANAL_CMD_INACTIVO,
+        CANAL_CMD_TORNEO, CANAL_CMD_ANUNCIOS } = require("../config");
 
 // Roles que se le dan al nuevo miembro
 const ROLES_NUEVO = [
-  "1469433888949665976",
-  "1479563134552375410",
-  "1469433884109443196",
-  "1503540325522870332",
+  "1516258966756266054",
+  "1516258974163402862",
+  "1516258980601659583",
+  "1516258985286696961",
 ];
 
-const CANAL_BIENVENIDA_NUEVO = "1469434070860824699";
+const CANAL_BIENVENIDA_NUEVO = "1516662918664683561";
 const cooldowns = new Map();
 const COOLDOWN_MS = 10 * 1000;
 
@@ -34,14 +36,14 @@ function buildDMEmbed(member) {
       `- Debes conectarte diariamente al canal de voz\n` +
       `- Tu tiempo se registra automáticamente\n` +
       `- Si no puedes conectarte usa \`!inactivo\` para justificarte\n` +
-      `- Llevas **3 días** sin entrar = advertencia | **12 días** = pierdes el rol\n\n` +
+      `- Llevas **1 día** sin entrar = advertencia | **6 días** = pierdes el rol\n\n` +
 
       `> 📢 __**COMANDOS DISPONIBLES**__\n` +
-      `- \`!horas\` → Ver tus horas acumuladas — úsalo en <#1504709759679598592>\n` +
-      `- \`!top\` → Ver el ranking semanal — úsalo en <#1504709759679598592>\n` +
-      `- \`!inactivo\` → Justificar inactividad — úsalo en <#1469434074925105204>\n` +
-      `- \`!torneo\` → Crear un torneo — úsalo en <#1504732853949300807>\n` +
-      `- \`!activense\` \`!tormenta\` \`!battle\` \`!drop\` → Notificar eventos a la banda — úsalos en <#1504732666908639302>\n\n` +
+      `- \`!horas\` → Ver tus horas acumuladas — úsalo en <#${CANAL_CMD_HORAS}>\n` +
+      `- \`!top\` → Ver el ranking semanal — úsalo en <#${CANAL_CMD_HORAS}>\n` +
+      `- \`!inactivo\` → Justificar inactividad — úsalo en <#${CANAL_CMD_INACTIVO}>\n` +
+      `- \`!torneo\` → Crear un torneo — úsalo en <#${CANAL_CMD_TORNEO}>\n` +
+      `- \`!activense\` \`!tormenta\` \`!battle\` \`!drop\` → Notificar eventos a la banda — úsalos en <#${CANAL_CMD_ANUNCIOS}>\n\n` +
 
       `> 📍 __**CANALES IMPORTANTES**__\n` +
       `- Los comandos solo funcionan en sus canales específicos\n` +

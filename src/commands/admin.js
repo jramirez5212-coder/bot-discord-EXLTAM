@@ -4,7 +4,7 @@ const { msToHours }                                            = require("../uti
 const { ACTIVITY_ROLE_ID, STAFF_ROLE_ID, GUILD_ID,
         LOGO_URL, CANAL_CMD_ADMIN, AFK_CHANNEL_ID }            = require("../config");
 
-const ROL_CHITEADO_ID = "1507240677690445824";
+const ROL_CHITEADO_ID = "1516258987320807536";
 
 function isAdmin(message) {
   return message.member?.roles?.cache?.has(STAFF_ROLE_ID) ||
@@ -287,7 +287,7 @@ async function handleAdmin(message, client) {
   }
 
   // ── !torneostop ──────────────────────────────────────────────
-  if (comando === "!torneostop","!reportetorneo") {
+  if (comando === "!torneostop") {
     const guild = await client.guilds.fetch(GUILD_ID); await guild.members.fetch();
     const miembros = guild.members.cache.filter(m => m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot);
     const lista = [];
@@ -314,10 +314,10 @@ async function handleAdmin(message, client) {
     const target = message.mentions.members.first();
     if (!target) return message.reply("❌ Uso: `!reportetorneo @usuario`");
 
-    const STRIKE1_ID = "1469433892720345352";
-    const STRIKE2_ID = "1469433893428920437";
-    const STRIKE3_ID = "1469433894343278709";
-    const CANAL_SANCIONES_ID = "1469434077433299160";
+    const STRIKE1_ID = require("../config").ROL_AVISO_ID;
+    const STRIKE2_ID = require("../config").ROL_AVISO2_ID;
+    const STRIKE3_ID = require("../config").ROL_EXPULSADO_ID;
+    const CANAL_SANCIONES_ID = require("../config").CANAL_SANCIONES_ID;
 
     const ud = getUser(data, target.id);
     if (!ud.reportesTorneo) ud.reportesTorneo = 0;
