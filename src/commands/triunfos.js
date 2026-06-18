@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 
-const CANAL_TRIUNFOS_ID = "1517003347561938954"; // canal donde la gente manda triunfos (repost) y también logs
+const CANAL_TRIUNFOS_ID = "1516259316225671263"; // canal donde la gente manda triunfos (repost)
 // Nota: usamos el mismo canal para el repost y para el log, según lo indicado.
 
 async function handleTriunfos(message) {

@@ -116,7 +116,8 @@ async function handleNuevo(message, client) {
       .setFooter({ text: `Solicitud: ${solicitudId}` })
       .setTimestamp();
 
-    await canalSS.send({ content: `<@${message.author.id}>`, embeds: [embed] });
+    const msgPeticion = await canalSS.send({ content: `<@${message.author.id}>`, embeds: [embed] });
+    pendientesSS.get(solicitudId).msgPeticionId = msgPeticion.id;
     await message.reply(`📸 Te pedí la foto de la SS de ${target} en <#${CANAL_SS_NUEVO}>. Sube la imagen ahí para continuar.`);
   } catch(e) {
     console.error("[NUEVO] Error pidiendo foto SS:", e.message);
@@ -146,6 +147,14 @@ async function handleNuevoFotoSS(message, client) {
   if (!target) { pendientesSS.delete(solicitudId); return message.reply("❌ No se encontró al usuario, vuelve a usar `!nuevo`."); }
 
   try { await message.delete(); } catch {} // no dejar la foto visible más de lo necesario
+
+  // Borrar el mensaje original de "Foto de SS requerida"
+  if (solicitud.msgPeticionId) {
+    try {
+      const msgPeticion = await message.channel.messages.fetch(solicitud.msgPeticionId);
+      await msgPeticion.delete();
+    } catch {}
+  }
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`ss_limpio:${solicitudId}`).setLabel("✅ Limpio").setStyle(ButtonStyle.Success),
@@ -182,15 +191,15 @@ async function handleSSResultButton(interaction, client) {
 
   pendientesSS.delete(solicitudId);
 
-  try {
-    await interaction.update({ components: [] });
-  } catch {}
+  // Acusar recibo de la interacción y borrar el mensaje de "Resultado de la SS"
+  try { await interaction.deferUpdate(); } catch {}
+  try { await interaction.message.delete(); } catch {}
 
   if (isChiteado) {
     const { marcarChiteado } = require("./admin");
     await marcarChiteado(target, client, solicitud.fotoUrl);
 
-    await interaction.followUp({
+    await interaction.channel.send({
       embeds: [new EmbedBuilder()
         .setColor(0xe74c3c)
         .setTitle("❌ Usuario marcado como Chiteado")
@@ -231,7 +240,7 @@ async function handleSSResultButton(interaction, client) {
   }
 
   // Plantilla final con todos los datos
-  await interaction.followUp({
+  await interaction.channel.send({
     embeds: [new EmbedBuilder()
       .setColor(0x39FF14)
       .setTitle("✅ Nuevo miembro aprobado — Limpio")
