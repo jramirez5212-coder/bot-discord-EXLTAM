@@ -12,7 +12,11 @@ const COMANDOS_POR_CANAL = {
   },
   [CANAL_CMD_INACTIVO]: {
     titulo: "📋 Comando de Inactividad",
-    texto: "`!inactivo` → Justificar tu inactividad (abre formulario)",
+    texto: "`!inactivo` → Justificar tu inactividad (abre formulario)\n\n" +
+           "⚠️ **MUY IMPORTANTE:** las fechas deben ir en formato **AÑO-MES-DÍA** (`YYYY-MM-DD`).\n" +
+           "✅ Ejemplo correcto: `2026-06-20`\n" +
+           "❌ Incorrecto: `20-06-2026`, `20/06/26`, `junio 20`\n\n" +
+           "Si pones el formato mal, el bot puede confundirse y calcular mal tus fechas de inactividad.",
   },
   [CANAL_CMD_ANUNCIOS]: {
     titulo: "📢 Comandos de Anuncios",

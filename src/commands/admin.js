@@ -426,7 +426,7 @@ Si crees que hubo un error, contacta al staff.`)
 }
 
 // Función reutilizable: marca a un usuario como chiteado (usada por !chiteado y por el flujo de SS de !nuevo)
-async function marcarChiteado(target, client, fotoUrl = null) {
+async function marcarChiteado(target, client, fotoUrl = null, fotoAdjunta = []) {
   try { await target.roles.add(ROL_CHITEADO_ID); } catch(e) { console.error("[CHITEADO]", e.message); }
 
   const guild   = await client.guilds.fetch(GUILD_ID);
@@ -452,11 +452,13 @@ async function marcarChiteado(target, client, fotoUrl = null) {
       )
       .setTimestamp();
     if (fotoUrl) embed.setImage(fotoUrl);
+    else if (fotoAdjunta.length) embed.setImage(`attachment://${fotoAdjunta[0].name}`);
 
     await ticket.send({
       content: `<@${target.id}>`,
       embeds: [embed],
-      components: [row]
+      components: [row],
+      files: fotoAdjunta
     });
   }
 

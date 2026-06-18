@@ -12,12 +12,6 @@ async function handleTriunfos(message) {
 
   if (!contenido && adjuntos.length === 0) return;
 
-  try {
-    await message.delete();
-  } catch (e) {
-    console.error("[TRIUNFOS] Error borrando mensaje original:", e.message);
-  }
-
   const embed = new EmbedBuilder()
     .setColor(0x39FF14)
     .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
@@ -37,6 +31,13 @@ async function handleTriunfos(message) {
     });
   } catch (e) {
     console.error("[TRIUNFOS] Error reenviando:", e.message);
+  }
+
+  // Borrar el mensaje original DESPUÉS de reenviar (si se borra antes, la URL del adjunto deja de ser válida)
+  try {
+    await message.delete();
+  } catch (e) {
+    console.error("[TRIUNFOS] Error borrando mensaje original:", e.message);
   }
 }
 

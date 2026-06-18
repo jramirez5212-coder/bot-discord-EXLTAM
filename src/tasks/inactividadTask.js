@@ -9,6 +9,8 @@ const { ACTIVITY_ROLE_ID, STAFF_ROLE_ID,
         GUILD_ID, DIA_ADV_1, DIA_ADV_2,
         DIA_ADV_3, DIA_EXPULSA }                       = require("../config");
 
+const CANAL_DECISION_EXPULSION_ID = "1517009855020273776";
+
 let lastCheck = null;
 
 function startInactividadTask(client) {
@@ -116,7 +118,8 @@ async function checkMedianoche(client) {
       else if (diasSin >= DIA_EXPULSA && !userData.pendienteExpulsion) {
         userData.pendienteExpulsion = true;
 
-        if (canalLogs) {
+        const canalDecision = await client.channels.fetch(CANAL_DECISION_EXPULSION_ID).catch(() => null);
+        if (canalDecision) {
           const embed = new EmbedBuilder()
             .setColor(0xe74c3c)
             .setTitle("🚫 ¿Expulsar del Rol de Actividad?")
@@ -147,7 +150,7 @@ async function checkMedianoche(client) {
           );
 
           try {
-            await canalLogs.send({
+            await canalDecision.send({
               content: `<@&${STAFF_ROLE_ID}> decisión pendiente sobre ${member}.`,
               embeds:  [embed],
               components: [row],

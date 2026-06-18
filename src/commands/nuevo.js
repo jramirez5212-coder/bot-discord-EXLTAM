@@ -141,7 +141,17 @@ async function handleNuevoFotoSS(message, client) {
   }
   if (!solicitud) return;
 
-  solicitud.fotoUrl = imagen.url;
+  // Descargamos la imagen ANTES de borrar el mensaje, porque al borrar la URL del CDN deja de servir el archivo
+  let fotoBuffer = null;
+  try {
+    const res = await fetch(imagen.url);
+    fotoBuffer = Buffer.from(await res.arrayBuffer());
+  } catch (e) {
+    console.error("[NUEVO] Error descargando foto SS:", e.message);
+  }
+  solicitud.fotoUrl = imagen.url; // referencia (puede caducar tras borrar, no se usa directamente)
+  solicitud.fotoBuffer = fotoBuffer;
+  solicitud.fotoName   = imagen.name || "ss.png";
 
   const target = await message.guild.members.fetch(solicitud.targetId).catch(() => null);
   if (!target) { pendientesSS.delete(solicitudId); return message.reply("❌ No se encontró al usuario, vuelve a usar `!nuevo`."); }
@@ -165,10 +175,21 @@ async function handleNuevoFotoSS(message, client) {
     .setColor(0x3498db)
     .setTitle("📸 Resultado de la SS")
     .setDescription(`Foto recibida para ${target}. ¿Cuál fue el resultado?`)
-    .setImage(imagen.url)
     .setFooter({ text: `Solicitud: ${solicitudId}` });
 
-  await message.channel.send({ content: `<@${message.author.id}>`, embeds: [embed], components: [row] });
+  if (fotoBuffer) embed.setImage(`attachment://${solicitud.fotoName}`);
+
+  const msgResultado = await message.channel.send({
+    content: `<@${message.author.id}>`,
+    embeds: [embed],
+    components: [row],
+    files: fotoBuffer ? [{ attachment: fotoBuffer, name: solicitud.fotoName }] : []
+  });
+
+  // Guardamos la URL re-subida (esta sí persiste mientras el mensaje exista) para reusarla en la plantilla final
+  if (msgResultado.attachments.size > 0) {
+    solicitud.fotoUrl = [...msgResultado.attachments.values()][0].url;
+  }
 }
 
 // Botones "Limpio" / "Chiteado" en el canal de SS
@@ -195,9 +216,12 @@ async function handleSSResultButton(interaction, client) {
   try { await interaction.deferUpdate(); } catch {}
   try { await interaction.message.delete(); } catch {}
 
+  const fotoAdjunta = solicitud.fotoBuffer ? [{ attachment: solicitud.fotoBuffer, name: solicitud.fotoName }] : [];
+  const fotoEmbedRef = solicitud.fotoBuffer ? `attachment://${solicitud.fotoName}` : null;
+
   if (isChiteado) {
     const { marcarChiteado } = require("./admin");
-    await marcarChiteado(target, client, solicitud.fotoUrl);
+    await marcarChiteado(target, client, null, fotoAdjunta);
 
     await interaction.channel.send({
       embeds: [new EmbedBuilder()
@@ -209,8 +233,9 @@ async function handleSSResultButton(interaction, client) {
           `**SS realizada por:** ${interaction.user}\n\n` +
           `Se activó el sistema de chiteado automáticamente.`
         )
-        .setImage(solicitud.fotoUrl)
-        .setTimestamp()]
+        .setImage(fotoEmbedRef)
+        .setTimestamp()],
+      files: fotoAdjunta
     });
     return;
   }
@@ -252,8 +277,9 @@ async function handleSSResultButton(interaction, client) {
         `🎭 Roles asignados: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}\n` +
         (rolesFail.length ? `⚠️ Roles fallidos: ${rolesFail.map(r=>`<@&${r}>`).join(", ")}` : "")
       )
-      .setImage(solicitud.fotoUrl)
-      .setTimestamp()]
+      .setImage(fotoEmbedRef)
+      .setTimestamp()],
+    files: fotoAdjunta
   });
 
   // Enviar tutorial en el canal original donde se ejecutó !nuevo
