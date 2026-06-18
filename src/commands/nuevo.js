@@ -87,6 +87,13 @@ async function handleNuevo(message, client) {
   if (!target)
     return message.reply("❌ Uso: `!nuevo @usuario`");
 
+  // Evitar abrir una segunda solicitud de SS si ya hay una pendiente para este usuario
+  for (const s of pendientesSS.values()) {
+    if (s.targetId === target.id) {
+      return message.reply(`⚠️ Ya hay una solicitud de SS pendiente para ${target}. Termínala antes de volver a usar \`!nuevo\` con esta persona.`);
+    }
+  }
+
   const key    = `nuevo:${message.author.id}`;
   const ultimo = cooldowns.get(key);
   if (ultimo && Date.now() - ultimo < COOLDOWN_MS) {
@@ -140,6 +147,9 @@ async function handleNuevoFotoSS(message, client) {
     if (s.atendioId === message.author.id && !s.fotoUrl) { solicitudId = id; solicitud = s; break; }
   }
   if (!solicitud) return;
+
+  // Esperamos 3 segundos para asegurar que el adjunto terminó de subirse/procesarse en el CDN de Discord
+  await new Promise(resolve => setTimeout(resolve, 3000));
 
   // Descargamos la imagen ANTES de borrar el mensaje, porque al borrar la URL del CDN deja de servir el archivo
   let fotoBuffer = null;
@@ -223,6 +233,23 @@ async function handleSSResultButton(interaction, client) {
     const { marcarChiteado } = require("./admin");
     await marcarChiteado(target, client, null, fotoAdjunta);
 
+    // Plantilla simple (sin foto) al ticket de postulación
+    const ticketPostulacion = guild.channels.cache.find(ch => ch.topic?.includes(`postulacionUser:${target.id}`));
+    if (ticketPostulacion) {
+      await ticketPostulacion.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle("❌ Usuario marcado como Chiteado")
+          .setDescription(
+            `**Usuario:** ${target}\n` +
+            `**Atendió (!nuevo):** <@${solicitud.atendioId}>\n\n` +
+            `Se activó el sistema de chiteado automáticamente.`
+          )
+          .setTimestamp()]
+      });
+    }
+
+    // Plantilla completa con la foto, se queda en el canal de SS
     await interaction.channel.send({
       embeds: [new EmbedBuilder()
         .setColor(0xe74c3c)
@@ -264,7 +291,25 @@ async function handleSSResultButton(interaction, client) {
     console.error("[NUEVO] Error enviando DM:", e.message);
   }
 
-  // Plantilla final con todos los datos
+  // Plantilla simple (sin foto) — se manda al ticket de postulación del usuario
+  const ticketPostulacion = guild.channels.cache.find(ch => ch.topic?.includes(`postulacionUser:${target.id}`));
+  if (ticketPostulacion) {
+    await ticketPostulacion.send({
+      embeds: [new EmbedBuilder()
+        .setColor(0x39FF14)
+        .setTitle("✅ Nuevo miembro aprobado — Limpio")
+        .setDescription(
+          `**Usuario:** ${target}\n` +
+          `**Atendió (!nuevo):** <@${solicitud.atendioId}>\n` +
+          `**Aprobó (resultado SS):** ${interaction.user}\n\n` +
+          `🎭 Roles asignados: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}\n` +
+          (rolesFail.length ? `⚠️ Roles fallidos: ${rolesFail.map(r=>`<@&${r}>`).join(", ")}` : "")
+        )
+        .setTimestamp()]
+    });
+  }
+
+  // Plantilla completa con la foto — se queda en el canal de SS
   await interaction.channel.send({
     embeds: [new EmbedBuilder()
       .setColor(0x39FF14)

@@ -12,6 +12,9 @@ async function handleTriunfos(message) {
 
   if (!contenido && adjuntos.length === 0) return;
 
+  // Esperamos 3 segundos para asegurar que el adjunto terminó de subirse/procesarse en el CDN de Discord
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
   const embed = new EmbedBuilder()
     .setColor(0x39FF14)
     .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })

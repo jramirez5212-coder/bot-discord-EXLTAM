@@ -56,10 +56,7 @@ module.exports = {
       saveData(data);
 
       console.log(`[VOZ] ▶ ${member.user.tag} entró a #${newState.channel?.name}`);
-      try {
-        const canalLog = await client.channels.fetch(CANAL_LOGS_VOZ_ID);
-        await canalLog.send(`🟢 ${member} entró al canal de voz **#${newState.channel?.name}**.`);
-      } catch (e) { console.error("[VOZ] Error log entrada:", e.message); }
+      // Log de Discord desactivado (solo se mantiene el log en consola)
     }
 
     // ── SALIÓ DE VOZ (o entró a AFK) ───────────────────────
@@ -99,10 +96,7 @@ module.exports = {
           cleanOldDays(userData);
           saveData(data);
           console.log(`[VOZ] ✓ ${member.user.tag} +${Math.floor(duration/60000)}m guardado`);
-          try {
-            const canalLog = await client.channels.fetch(CANAL_LOGS_VOZ_ID);
-            await canalLog.send(`🔴 ${member} salió del canal de voz. Tiempo registrado: **${Math.floor(duration/60000)} min**.`);
-          } catch (e) { console.error("[VOZ] Error log salida:", e.message); }
+          // Log de Discord desactivado (solo se mantiene el log en consola)
         } else {
           // Limpiar sessionStart aunque no se guarden horas
           const data     = loadData();
