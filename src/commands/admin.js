@@ -411,48 +411,56 @@ Si crees que hubo un error, contacta al staff.`)
       .setTimestamp()] });
   }
 
-  // ── !chiteado @usuario ───────────────────────────────────────
+// ── !chiteado @usuario ───────────────────────────────────────
   if (comando === "!chiteado") {
     const target = message.mentions.members.first();
     if (!target) return message.reply("❌ Uso: `!chiteado @usuario`");
 
-    // Dar rol de chiteado
-    try { await target.roles.add(ROL_CHITEADO_ID); } catch(e) { console.error("[CHITEADO]", e.message); }
-
-    // Buscar ticket abierto de la persona
-    const guild   = await client.guilds.fetch(GUILD_ID);
-    const ticket  = guild.channels.cache.find(ch =>
-      ch.topic?.includes(`postulacionUser:${target.id}`) ||
-      ch.topic?.includes(`ticketOwner:${target.id}`)
-    );
-
-    if (ticket) {
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`btn_formateo:${target.id}`)
-          .setLabel("✅ Ya formateé")
-          .setStyle(ButtonStyle.Success)
-      );
-      await ticket.send({
-        content: `<@${target.id}>`,
-        embeds: [new EmbedBuilder()
-          .setColor(0xe74c3c)
-          .setTitle("⚠️ Aviso de Cheat")
-          .setDescription(
-            `${target} ha sido marcado como **chiteado**.\n\n` +
-            `Para continuar en la banda debes **formatear tu PC**.\n\n` +
-            `Cuando hayas formateado presiona el botón de abajo.`
-          )
-          .setTimestamp()],
-        components: [row]
-      });
-    }
+    const ticket = await marcarChiteado(target, client);
 
     return message.reply({ embeds: [new EmbedBuilder().setColor(0xe74c3c)
       .setTitle("✅ Rol chiteado asignado")
       .setDescription(`${target} tiene el rol de chiteado.${ticket ? `\nMensaje enviado en ${ticket}.` : "\n⚠️ No se encontró ticket abierto."}`)
       .setTimestamp()] });
   }
+}
+
+// Función reutilizable: marca a un usuario como chiteado (usada por !chiteado y por el flujo de SS de !nuevo)
+async function marcarChiteado(target, client, fotoUrl = null) {
+  try { await target.roles.add(ROL_CHITEADO_ID); } catch(e) { console.error("[CHITEADO]", e.message); }
+
+  const guild   = await client.guilds.fetch(GUILD_ID);
+  const ticket  = guild.channels.cache.find(ch =>
+    ch.topic?.includes(`postulacionUser:${target.id}`) ||
+    ch.topic?.includes(`ticketOwner:${target.id}`)
+  );
+
+  if (ticket) {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`btn_formateo:${target.id}`)
+        .setLabel("✅ Ya formateé")
+        .setStyle(ButtonStyle.Success)
+    );
+    const embed = new EmbedBuilder()
+      .setColor(0xe74c3c)
+      .setTitle("⚠️ Aviso de Cheat")
+      .setDescription(
+        `${target} ha sido marcado como **chiteado**.\n\n` +
+        `Para continuar en la banda debes **formatear tu PC**.\n\n` +
+        `Cuando hayas formateado presiona el botón de abajo.`
+      )
+      .setTimestamp();
+    if (fotoUrl) embed.setImage(fotoUrl);
+
+    await ticket.send({
+      content: `<@${target.id}>`,
+      embeds: [embed],
+      components: [row]
+    });
+  }
+
+  return ticket;
 }
 
 // Botón "Ya formateé" — notifica a los SS
@@ -490,4 +498,4 @@ async function handleChiteadoButton(interaction, client) {
   });
 }
 
-module.exports = { handleAdmin, handleChiteadoButton };
+module.exports = { handleAdmin, handleChiteadoButton, marcarChiteado };

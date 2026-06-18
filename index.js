@@ -26,10 +26,14 @@ const { handleAdmin,
         handleChiteadoButton }      = require("./src/commands/admin");
 const { handleNuevo,
         handleNuevoButton,
-        handleTutorialButton }      = require("./src/commands/nuevo");
+        handleTutorialButton,
+        handleNuevoFotoSS,
+        handleSSResultButton }      = require("./src/commands/nuevo");
 const { handleTandas }             = require("./src/commands/tandas");
 const { handleInactividadDecision } = require("./src/commands/inactividadDecision");
 const { handleMigrarRoles }        = require("./src/commands/migrarRoles");
+const { handleComandosFijados, ensurePinnedCommands, COMANDOS_POR_CANAL } = require("./src/commands/comandosFijados");
+const { handleTriunfos }           = require("./src/commands/triunfos");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
 
@@ -106,6 +110,8 @@ const isStaffMember    = m => m?.roles?.cache?.has(config.staffBandasRoleId) || 
 const canStaff         = i => i.member?.roles?.cache?.has(config.staffBandasRoleId) || i.member?.permissions?.has(PermissionFlagsBits.Administrator);
 const getTicketTypeFromChannel = ch => ch?.topic?.match(/ticketType:([a-zA-Z0-9_-]+)/)?.[1] || null;
 const canManageThisTicket = i => { if (!i.member) return false; if (i.member.permissions.has(PermissionFlagsBits.Administrator)) return true; const types=getTicketTypesFor(i.guild.id); const t=types[getTicketTypeFromChannel(i.channel)]; return t?i.member.roles.cache.has(t.roleId):false; };
+const ROL_VER_RENOMBRAR_TICKET_ID = "1516258952101363712"; // ve el ticket, puede renombrar y solicitar SS, NO puede cerrar
+const canRenombrarTicket = i => canManageThisTicket(i) || i.member?.roles?.cache?.has(ROL_VER_RENOMBRAR_TICKET_ID);
 const getTicketUserId  = ch => ch.topic?.match(/postulacionUser:(\d+)/)?.[1] || null;
 
 const buildRenameTicketModal = () => { const m=new ModalBuilder().setCustomId("modal_rename_ticket").setTitle("Renombrar ticket"); m.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("new_name").setLabel("Nuevo nombre del canal").setPlaceholder("Ejemplo: reporte-juan").setStyle(TextInputStyle.Short).setRequired(true))); return m; };
@@ -298,6 +304,14 @@ client.once("clientReady", async () => {
   await sendAutoPostulacionesPanel("auto").catch(e=>console.log("⚠️",e.message));
   await sendTicketPanelViejo().catch(e=>console.log("⚠️ Panel viejo:",e.message));
   setInterval(()=>sendAutoPostulacionesPanel("auto").catch(()=>{}), 10*60*1000);
+
+  // Mensajes fijados de comandos al iniciar
+  for (const channelId of Object.keys(COMANDOS_POR_CANAL)) {
+    try {
+      const ch = await client.channels.fetch(channelId);
+      if (ch) await ensurePinnedCommands(ch);
+    } catch (e) { console.log(`⚠️ Comandos fijados ${channelId}:`, e.message); }
+  }
 });
 
 client.on("guildMemberAdd", async member => {
@@ -342,8 +356,11 @@ client.on("messageCreate", async message => {
     await handleTorneo(message);
     await handleAdmin(message, client);
     await handleNuevo(message, client);
+    await handleNuevoFotoSS(message, client);
     await handleTandas(message);
     await handleMigrarRoles(message, client);
+    await handleTriunfos(message);
+    await handleComandosFijados(message);
 
     if (message.content.trim().toLowerCase() === "!panel") {
       if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos.").catch(()=>null);
@@ -393,13 +410,15 @@ client.on("interactionCreate", async interaction => {
     await handleTorneoInteraction(interaction, client);
     await handleNuevoButton(interaction, client);
     await handleTutorialButton(interaction, client);
+    await handleSSResultButton(interaction, client);
     await handleChiteadoButton(interaction, client);
     await handleInactividadDecision(interaction, client);
+    await voiceEvent.handleAntiFarmeoButton(interaction);
     if (interaction.replied || interaction.deferred) return;
 
     if (interaction.isModalSubmit()) {
       if (interaction.customId === "modal_rename_ticket") {
-        if (!canManageThisTicket(interaction)) return interaction.reply({content:"No tienes permisos.",ephemeral:true});
+        if (!canRenombrarTicket(interaction)) return interaction.reply({content:"No tienes permisos.",ephemeral:true});
         const n=cleanChannelName(interaction.fields.getTextInputValue("new_name"));if(!n)return interaction.reply({content:"Nombre inválido.",ephemeral:true});
         await interaction.channel.setName(n);return interaction.reply({content:`✅ Canal renombrado a **${n}**.`,ephemeral:true});
       }
@@ -416,7 +435,8 @@ client.on("interactionCreate", async interaction => {
 
     // Botón solicitar SS
     const ENTREVISTADOR_ROLE_ID = "1516258946715881592";
-    const canSolicitar = i => canStaff(i) || i.member?.roles?.cache?.has(ENTREVISTADOR_ROLE_ID);
+    const ROL_VER_SOLICITAR_SS_ID = "1516258952101363712"; // ve el ticket + puede solicitar SS, no puede cerrar/renombrar
+    const canSolicitar = i => canStaff(i) || i.member?.roles?.cache?.has(ENTREVISTADOR_ROLE_ID) || i.member?.roles?.cache?.has(ROL_VER_SOLICITAR_SS_ID);
 
     if (interaction.customId === "solicitar_ss") {
       if (!canSolicitar(interaction))
@@ -434,7 +454,14 @@ client.on("interactionCreate", async interaction => {
       await interaction.deferReply({ephemeral:true});
       const apps=loadApps();apps[interaction.user.id]={status:"respondiendo",current:0,answers:[],createdAt:Date.now()};saveApps(apps);
       try{await askQuestion(interaction.user.id);await botLog("📝","Postulación iniciada",`<@${interaction.user.id}>`,"auto");return interaction.editReply({content:"📩 Te envié las preguntas por DM. Revisa tus mensajes privados."});}
-      catch{delete apps[interaction.user.id];saveApps(apps);return interaction.editReply({content:"No pude enviarte DM. Activa los mensajes privados e intenta otra vez."});}
+      catch(e){
+        delete apps[interaction.user.id];saveApps(apps);
+        try {
+          const canalProblemas = await client.channels.fetch("1516259311410614332");
+          await canalProblemas.send({embeds:[new EmbedBuilder().setColor(0xe74c3c).setTitle("⚠️ Problema al iniciar postulación").setDescription(`${interaction.user} intentó postular pero no se pudo enviar el DM (privados cerrados o error).`).setTimestamp()]});
+        } catch {}
+        return interaction.editReply({content:"No pude enviarte DM. Activa los mensajes privados e intenta otra vez."});
+      }
     }
 
     if (interaction.customId.startsWith("apelar_rechazo_")) {
@@ -480,7 +507,7 @@ client.on("interactionCreate", async interaction => {
     }
 
     if (interaction.customId === "renombrar_ticket") {
-      if (!canManageThisTicket(interaction)) return interaction.reply({content:"Solo el staff puede renombrar.",ephemeral:true});
+      if (!canRenombrarTicket(interaction)) return interaction.reply({content:"Solo el staff puede renombrar.",ephemeral:true});
       return interaction.showModal(buildRenameTicketModal());
     }
 
@@ -503,7 +530,7 @@ client.on("interactionCreate", async interaction => {
     const guildNombre = interaction.guild.id===GUILD_VIEJO_ID ? configViejo.guildName : config.guildName;
     const existing=interaction.guild.channels.cache.find(ch=>ch.topic?.includes(`ticketOwner:${interaction.user.id}`)&&ch.topic?.includes(`ticketType:${type}`));
     if(existing)return interaction.reply({content:`Ya tienes un ticket: ${existing}`,ephemeral:true});
-    const ch=await interaction.guild.channels.create({name:`${type}-${cleanChannelName(interaction.user.username)}`,type:ChannelType.GuildText,parent:ticket.categoryId,topic:`ticketOwner:${interaction.user.id} | ticketType:${type}`,permissionOverwrites:[{id:interaction.guild.roles.everyone.id,deny:[PermissionFlagsBits.ViewChannel]},{id:interaction.user.id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},{id:ticket.roleId,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]}]});
+    const ch=await interaction.guild.channels.create({name:`${type}-${cleanChannelName(interaction.user.username)}`,type:ChannelType.GuildText,parent:ticket.categoryId,topic:`ticketOwner:${interaction.user.id} | ticketType:${type}`,permissionOverwrites:[{id:interaction.guild.roles.everyone.id,deny:[PermissionFlagsBits.ViewChannel]},{id:interaction.user.id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},{id:ticket.roleId,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},{id:"1516258952101363712",allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]}]});
     const embed=new EmbedBuilder().setColor(COLOR).setTitle(`${ticket.emoji} ${ticket.label}`).setDescription(ticket.description).setThumbnail(config.logoUrl).setFooter({text:guildNombre});
     const btns=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("cerrar_ticket").setLabel("Cerrar").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("renombrar_ticket").setLabel("Renombrar").setStyle(ButtonStyle.Primary));
     await ch.send({content:`<@${interaction.user.id}> Has abierto un ticket de (${ticket.emoji} **${ticket.label}**). Espera que un <@&${ticket.roleId}> te atienda.`,embeds:[embed],components:[btns]});

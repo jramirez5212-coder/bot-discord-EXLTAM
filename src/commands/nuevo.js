@@ -15,8 +15,12 @@ const ROLES_NUEVO = [
 
 const CANAL_BIENVENIDA_NUEVO = "1516662918664683561";
 const CANAL_VIDEO_TUTORIAL   = "1516684343010136094";
+const CANAL_SS_NUEVO         = "1516259312148680848";
 const cooldowns = new Map();
 const COOLDOWN_MS = 10 * 1000;
+
+// Estado pendiente: solicitudId -> { target, autor, mensajeOriginal }
+const pendientesSS = new Map();
 
 // Busca el adjunto de video más reciente en el canal fijo de tutorial
 async function getTutorialVideoAttachment(client) {
@@ -90,7 +94,119 @@ async function handleNuevo(message, client) {
   }
   cooldowns.set(key, Date.now());
 
-  // Dar roles
+  // Pedir la foto de la SS en el canal privado de staff
+  try {
+    const canalSS = await client.channels.fetch(CANAL_SS_NUEVO);
+    if (!canalSS) return message.reply("❌ No se encontró el canal de SS, revisa la configuración.");
+
+    const solicitudId = `${message.author.id}-${target.id}-${Date.now()}`;
+    pendientesSS.set(solicitudId, {
+      targetId:        target.id,
+      atendioId:       message.author.id,
+      canalComandoId:  message.channel.id,
+    });
+
+    const embed = new EmbedBuilder()
+      .setColor(0x3498db)
+      .setTitle("📸 Foto de SS requerida")
+      .setDescription(
+        `${message.author}, sube aquí la **foto de la SS** de ${target} (revisión de cheats).\n\n` +
+        `Tu siguiente mensaje con una imagen en este canal será tomado como la foto de SS de esta solicitud.`
+      )
+      .setFooter({ text: `Solicitud: ${solicitudId}` })
+      .setTimestamp();
+
+    await canalSS.send({ content: `<@${message.author.id}>`, embeds: [embed] });
+    await message.reply(`📸 Te pedí la foto de la SS de ${target} en <#${CANAL_SS_NUEVO}>. Sube la imagen ahí para continuar.`);
+  } catch(e) {
+    console.error("[NUEVO] Error pidiendo foto SS:", e.message);
+    await message.reply("❌ Ocurrió un error al iniciar el proceso, intenta de nuevo.");
+  }
+}
+
+// Escucha mensajes con imagen en el canal de SS para completar la solicitud pendiente
+async function handleNuevoFotoSS(message, client) {
+  if (message.author.bot) return;
+  if (message.channel.id !== CANAL_SS_NUEVO) return;
+
+  const imagen = [...message.attachments.values()].find(a => a.contentType?.startsWith("image/"));
+  if (!imagen) return;
+
+  // Buscar la solicitud pendiente más reciente de este autor sin foto asignada todavía
+  let solicitudId = null;
+  let solicitud   = null;
+  for (const [id, s] of pendientesSS) {
+    if (s.atendioId === message.author.id && !s.fotoUrl) { solicitudId = id; solicitud = s; break; }
+  }
+  if (!solicitud) return;
+
+  solicitud.fotoUrl = imagen.url;
+
+  const target = await message.guild.members.fetch(solicitud.targetId).catch(() => null);
+  if (!target) { pendientesSS.delete(solicitudId); return message.reply("❌ No se encontró al usuario, vuelve a usar `!nuevo`."); }
+
+  try { await message.delete(); } catch {} // no dejar la foto visible más de lo necesario
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`ss_limpio:${solicitudId}`).setLabel("✅ Limpio").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`ss_chiteado:${solicitudId}`).setLabel("❌ Chiteado").setStyle(ButtonStyle.Danger)
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("📸 Resultado de la SS")
+    .setDescription(`Foto recibida para ${target}. ¿Cuál fue el resultado?`)
+    .setImage(imagen.url)
+    .setFooter({ text: `Solicitud: ${solicitudId}` });
+
+  await message.channel.send({ content: `<@${message.author.id}>`, embeds: [embed], components: [row] });
+}
+
+// Botones "Limpio" / "Chiteado" en el canal de SS
+async function handleSSResultButton(interaction, client) {
+  if (!interaction.isButton()) return;
+  const isLimpio   = interaction.customId.startsWith("ss_limpio:");
+  const isChiteado = interaction.customId.startsWith("ss_chiteado:");
+  if (!isLimpio && !isChiteado) return;
+
+  const solicitudId = interaction.customId.split(":").slice(1).join(":");
+  const solicitud    = pendientesSS.get(solicitudId);
+  if (!solicitud) return interaction.reply({ content: "❌ Esta solicitud ya no está disponible.", ephemeral: true });
+
+  if (interaction.user.id !== solicitud.atendioId)
+    return interaction.reply({ content: "❌ Solo quien ejecutó `!nuevo` puede confirmar el resultado.", ephemeral: true });
+
+  const guild  = interaction.guild;
+  const target = await guild.members.fetch(solicitud.targetId).catch(() => null);
+  if (!target) { pendientesSS.delete(solicitudId); return interaction.reply({ content: "❌ Usuario no encontrado.", ephemeral: true }); }
+
+  pendientesSS.delete(solicitudId);
+
+  try {
+    await interaction.update({ components: [] });
+  } catch {}
+
+  if (isChiteado) {
+    const { marcarChiteado } = require("./admin");
+    await marcarChiteado(target, client, solicitud.fotoUrl);
+
+    await interaction.followUp({
+      embeds: [new EmbedBuilder()
+        .setColor(0xe74c3c)
+        .setTitle("❌ Usuario marcado como Chiteado")
+        .setDescription(
+          `**Usuario:** ${target}\n` +
+          `**Atendió (!nuevo):** <@${solicitud.atendioId}>\n` +
+          `**SS realizada por:** ${interaction.user}\n\n` +
+          `Se activó el sistema de chiteado automáticamente.`
+        )
+        .setImage(solicitud.fotoUrl)
+        .setTimestamp()]
+    });
+    return;
+  }
+
+  // Limpio: asignar roles, mandar DM, tutorial
   const rolesOk = [];
   const rolesFail = [];
   for (const rolId of ROLES_NUEVO) {
@@ -102,7 +218,6 @@ async function handleNuevo(message, client) {
     }
   }
 
-  // Enviar DM con instrucciones y botón
   try {
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -110,44 +225,36 @@ async function handleNuevo(message, client) {
         .setLabel("✅ Leído — ¡Entendido!")
         .setStyle(ButtonStyle.Success)
     );
-
-    await target.send({
-      embeds:     [buildDMEmbed(target)],
-      components: [row]
-    });
-
-    await message.reply({
-      embeds: [new EmbedBuilder()
-        .setColor(0x39FF14)
-        .setTitle("✅ Nuevo miembro procesado")
-        .setDescription(
-          `${target} fue procesado correctamente.\n\n` +
-          `📩 DM enviado con instrucciones\n` +
-          `🎭 Roles asignados: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}\n` +
-          (rolesFail.length ? `⚠️ Roles fallidos: ${rolesFail.map(r=>`<@&${r}>`).join(", ")}` : "")
-        )
-        .setTimestamp()]
-    });
-
+    await target.send({ embeds: [buildDMEmbed(target)], components: [row] });
   } catch(e) {
     console.error("[NUEVO] Error enviando DM:", e.message);
-    await message.reply(`⚠️ No pude enviar el DM a ${target} (privados cerrados). Roles asignados igualmente.`);
   }
 
-  // Enviar tutorial en el mismo canal donde se usó el comando
+  // Plantilla final con todos los datos
+  await interaction.followUp({
+    embeds: [new EmbedBuilder()
+      .setColor(0x39FF14)
+      .setTitle("✅ Nuevo miembro aprobado — Limpio")
+      .setDescription(
+        `**Usuario:** ${target}\n` +
+        `**Atendió (!nuevo):** <@${solicitud.atendioId}>\n` +
+        `**Aprobó (resultado SS):** ${interaction.user}\n` +
+        `**SS realizada por:** ${interaction.user}\n\n` +
+        `🎭 Roles asignados: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}\n` +
+        (rolesFail.length ? `⚠️ Roles fallidos: ${rolesFail.map(r=>`<@&${r}>`).join(", ")}` : "")
+      )
+      .setImage(solicitud.fotoUrl)
+      .setTimestamp()]
+  });
+
+  // Enviar tutorial en el canal original donde se ejecutó !nuevo
   try {
+    const canalComando = await client.channels.fetch(solicitud.canalComandoId);
     const videoAttachment = await getTutorialVideoAttachment(client);
     const rowTutorial = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`tutorial_claro:${target.id}`)
-        .setLabel("✅ Todo claro")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`tutorial_dudas:${target.id}`)
-        .setLabel("❓ Tengo dudas")
-        .setStyle(ButtonStyle.Danger)
+      new ButtonBuilder().setCustomId(`tutorial_claro:${target.id}`).setLabel("✅ Todo claro").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`tutorial_dudas:${target.id}`).setLabel("❓ Tengo dudas").setStyle(ButtonStyle.Danger)
     );
-
     const embedTutorial = new EmbedBuilder()
       .setColor(0x39FF14)
       .setTitle("🎬 Tutorial de Discord — EXLATAM")
@@ -158,15 +265,9 @@ async function handleNuevo(message, client) {
       )
       .setTimestamp();
 
-    await message.channel.send({
-      embeds:  [embedTutorial],
-      components: [rowTutorial]
-    });
-
-    // El video se manda como link plano en su propio mensaje, igual que las imágenes
-    // de postulación — así Discord lo embebe con reproductor nativo.
+    await canalComando.send({ embeds: [embedTutorial], components: [rowTutorial] });
     if (videoAttachment) {
-      try { await message.channel.send({ content: videoAttachment.url }); } catch {}
+      try { await canalComando.send({ content: videoAttachment.url }); } catch {}
     }
   } catch(e) {
     console.error("[NUEVO] Error enviando tutorial:", e.message);
@@ -246,4 +347,4 @@ async function handleTutorialButton(interaction, client) {
   } catch {}
 }
 
-module.exports = { handleNuevo, handleNuevoButton, handleTutorialButton };
+module.exports = { handleNuevo, handleNuevoButton, handleTutorialButton, handleNuevoFotoSS, handleSSResultButton };
