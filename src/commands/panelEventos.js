@@ -271,4 +271,80 @@ async function handleEmbedCreator(message) {
   }
 }
 
-module.exports = { initPanelEventos, handlePanelButton, handleEmbedCreator };
+
+// ── !anuncio ──────────────────────────────────────────────────────────────────
+async function handleAnuncioCmd(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!anuncio")) return;
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require("../config");
+  if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
+  const texto = message.content.slice("!anuncio".length).trim();
+  if (!texto) return message.reply("❌ Uso: `!anuncio [texto]`");
+  const canal = await message.client.channels.fetch("1516259340431130715").catch(() => null);
+  if (!canal) return message.reply("❌ No se encontró el canal de anuncios.");
+  const embed = new EmbedBuilder().setColor(0x39FF14).setTitle("📢 ANUNCIO").setDescription(texto).setFooter({ text: `Publicado por ${message.author.tag}` }).setTimestamp();
+  await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}>`, embeds: [embed] });
+  await message.reply("✅ Anuncio enviado.");
+}
+
+// ── !recordatorio ─────────────────────────────────────────────────────────────
+async function handleRecordatorio(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!recordatorio")) return;
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require("../config");
+  if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
+  const args = message.content.slice("!recordatorio".length).trim().split(/\s+/);
+  const mins = parseInt(args[0]);
+  const texto = args.slice(1).join(" ");
+  if (isNaN(mins) || mins < 1 || !texto) return message.reply("❌ Uso: `!recordatorio [minutos] [texto]`");
+  await message.reply(`✅ Recordatorio en **${mins} minuto${mins === 1 ? "" : "s"}**.`);
+  setTimeout(async () => {
+    const canal = await message.client.channels.fetch("1516259340431130715").catch(() => null);
+    if (!canal) return;
+    const embed = new EmbedBuilder().setColor(0xf39c12).setTitle("⏰ RECORDATORIO").setDescription(texto).setFooter({ text: `Programado por ${message.author.tag}` }).setTimestamp();
+    await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}>`, embeds: [embed] });
+  }, mins * 60 * 1000);
+}
+
+// ── !encuesta (paso a paso) ───────────────────────────────────────────────────
+const EMOJI_SI = "<:emoji_41:1504932685813121288>";
+const EMOJI_NO = "<:emoji_42:1504932838321946775>";
+const encuestaSesiones = new Map();
+
+async function handleEncuesta(message) {
+  if (message.author.bot) return;
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require("../config");
+  if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
+  const content = message.content.trim();
+  if (content.toLowerCase() === "!encuesta") {
+    encuestaSesiones.set(message.author.id, { paso: "titulo", datos: {} });
+    return message.reply("📊 **Creador de encuestas**\n\n¿Cuál es el título de la encuesta?");
+  }
+  const sesion = encuestaSesiones.get(message.author.id);
+  if (!sesion) return;
+  if (sesion.paso === "titulo") {
+    sesion.datos.titulo = content;
+    sesion.paso = "descripcion";
+    return message.reply("✅ Título guardado.\n\n**¿Descripción o pregunta?** (escribe `-` para omitir)");
+  }
+  if (sesion.paso === "descripcion") {
+    sesion.datos.descripcion = content === "-" ? null : content;
+    sesion.paso = "canal";
+    return message.reply("✅ Guardado.\n\n**¿En qué canal?** (menciona el canal con #)");
+  }
+  if (sesion.paso === "canal") {
+    const canal = message.mentions.channels.first();
+    if (!canal) return message.reply("❌ Menciona el canal con #");
+    encuestaSesiones.delete(message.author.id);
+    const embed = new EmbedBuilder().setColor(0x3498db).setTitle(`📊 ${sesion.datos.titulo}`).setTimestamp().setFooter({ text: `Encuesta por ${message.author.tag}` });
+    if (sesion.datos.descripcion) embed.setDescription(sesion.datos.descripcion);
+    try {
+      const msg = await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}>`, embeds: [embed] });
+      await msg.react(EMOJI_SI).catch(() => {});
+      await msg.react(EMOJI_NO).catch(() => {});
+      await message.reply(`✅ Encuesta publicada en ${canal}.`);
+    } catch(e) { await message.reply(`❌ Error: ${e.message}`); }
+  }
+}
+
+module.exports = { initPanelEventos, handlePanelButton, handleEmbedCreator, handleAnuncioCmd, handleRecordatorio, handleEncuesta };

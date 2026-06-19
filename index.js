@@ -18,6 +18,7 @@ const { handleAnuncios }           = require("./src/commands/anuncios");
 const { handleInactividad,
         handleInactividadButton,
         handleInactividadModal,
+        handleRegresesButton,
         isExcused }                = require("./src/commands/inactividad");
 const { handleTorneo,
         handleTorneoInteraction,
@@ -38,7 +39,7 @@ const { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMeti
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
 const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require("./src/tasks/calendarioTask");
-const { initPanelEventos, handlePanelButton, handleEmbedCreator } = require("./src/commands/panelEventos");
+const { initPanelEventos, handlePanelButton, handleEmbedCreator, handleAnuncioCmd, handleRecordatorio, handleEncuesta } = require("./src/commands/panelEventos");
 
 global.isExcused = isExcused;
 
@@ -370,6 +371,12 @@ client.on("messageCreate", async message => {
     await handleTandas(message);
     await handleMigrarRoles(message, client);
     await handleEmbedCreator(message);
+    await handleAnuncioCmd(message);
+    await handleRecordatorio(message);
+    await handleEncuesta(message);
+    await handleEncuesta(message);
+    await handleAnuncio(message);
+    await handleRecordatorio(message);
     await handleTriunfos(message);
     await handleTopTriunfos(message);
     await handleMisTriunfos(message);
@@ -378,6 +385,48 @@ client.on("messageCreate", async message => {
     await handleTopArmario(message);
     await handleTopMetio(message);
     await handleComandosFijados(message);
+
+    // ── Comandos de control del anti-farmeo ──────────────────────────────────
+    const cmdAfk = message.content.trim().toLowerCase().split(/\s+/);
+    const afkCmds = ["!desactivarafk","!activarafk","!desactivarsilenciadoafk","!activarsilenciadoafk","!desactivarensordecidoafk","!activarensordecidoafk"];
+    if (afkCmds.includes(cmdAfk[0])) {
+      if (!isStaffMember(message.member)) return message.reply("❌ No tienes permiso.").catch(()=>null);
+      const target = message.mentions.members.first();
+      if (!target) return message.reply("❌ Menciona a un usuario. Ej: `!desactivarafk @usuario`").catch(()=>null);
+      const uid = target.id;
+      let respuesta = "";
+      switch(cmdAfk[0]) {
+        case "!desactivarafk":
+          voiceEvent.afkExemptos.add(uid);
+          voiceEvent.afkExemptosMute.add(uid);
+          voiceEvent.afkExemptoDeaf.add(uid);
+          respuesta = `✅ **Anti-farmeo desactivado** para ${target} (ensordecido + silenciado).`;
+          break;
+        case "!activarafk":
+          voiceEvent.afkExemptos.delete(uid);
+          voiceEvent.afkExemptosMute.delete(uid);
+          voiceEvent.afkExemptoDeaf.delete(uid);
+          respuesta = `✅ **Anti-farmeo activado** para ${target}.`;
+          break;
+        case "!desactivarsilenciadoafk":
+          voiceEvent.afkExemptosMute.add(uid);
+          respuesta = `✅ ${target} ya no será chequeado por estar **silenciado**.`;
+          break;
+        case "!activarsilenciadoafk":
+          voiceEvent.afkExemptosMute.delete(uid);
+          respuesta = `✅ ${target} volverá a ser chequeado por estar **silenciado**.`;
+          break;
+        case "!desactivarensordecidoafk":
+          voiceEvent.afkExemptoDeaf.add(uid);
+          respuesta = `✅ ${target} ya no será chequeado por estar **ensordecido**.`;
+          break;
+        case "!activarensordecidoafk":
+          voiceEvent.afkExemptoDeaf.delete(uid);
+          respuesta = `✅ ${target} volverá a ser chequeado por estar **ensordecido**.`;
+          break;
+      }
+      return message.reply(respuesta).catch(()=>null);
+    }
 
     if (message.content.trim().toLowerCase() === "!panel") {
       if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos.").catch(()=>null);
@@ -430,6 +479,7 @@ client.on("interactionCreate", async interaction => {
     await handleSSResultButton(interaction, client);
     await handleChiteadoButton(interaction, client);
     await handleInactividadDecision(interaction, client);
+    await handleRegresesButton(interaction, client);
     await voiceEvent.handleAntiFarmeoButton(interaction);
     await handleInscripcionButton(interaction);
     await handleArmarioAlertaButton(interaction);
@@ -550,7 +600,20 @@ client.on("interactionCreate", async interaction => {
     const guildNombre = interaction.guild.id===GUILD_VIEJO_ID ? configViejo.guildName : config.guildName;
     const existing=interaction.guild.channels.cache.find(ch=>ch.topic?.includes(`ticketOwner:${interaction.user.id}`)&&ch.topic?.includes(`ticketType:${type}`));
     if(existing)return interaction.reply({content:`Ya tienes un ticket: ${existing}`,ephemeral:true});
-    const ch=await interaction.guild.channels.create({name:`${type}-${cleanChannelName(interaction.user.username)}`,type:ChannelType.GuildText,parent:ticket.categoryId,topic:`ticketOwner:${interaction.user.id} | ticketType:${type}`,permissionOverwrites:[{id:interaction.guild.roles.everyone.id,deny:[PermissionFlagsBits.ViewChannel]},{id:interaction.user.id,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},{id:ticket.roleId,allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},{id:"1516258952101363712",allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]}]});
+
+    // Verificar que los roles existen en el guild antes de usarlos en permissionOverwrites
+    await interaction.guild.roles.fetch();
+    const rolTicket   = interaction.guild.roles.cache.get(ticket.roleId);
+    const rolEspecial = interaction.guild.roles.cache.get("1516258952101363712");
+
+    const overwrites = [
+      {id:interaction.guild.roles.everyone.id, deny:[PermissionFlagsBits.ViewChannel]},
+      {id:interaction.user.id, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},
+    ];
+    if (rolTicket)   overwrites.push({id:ticket.roleId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.ManageMessages,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]});
+    if (rolEspecial) overwrites.push({id:"1516258952101363712", allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory]});
+
+    const ch=await interaction.guild.channels.create({name:`${type}-${cleanChannelName(interaction.user.username)}`,type:ChannelType.GuildText,parent:ticket.categoryId,topic:`ticketOwner:${interaction.user.id} | ticketType:${type}`,permissionOverwrites:overwrites});
     const embed=new EmbedBuilder().setColor(COLOR).setTitle(`${ticket.emoji} ${ticket.label}`).setDescription(ticket.description).setThumbnail(config.logoUrl).setFooter({text:guildNombre});
     const btns=new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("cerrar_ticket").setLabel("Cerrar").setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("renombrar_ticket").setLabel("Renombrar").setStyle(ButtonStyle.Primary));
     await ch.send({content:`<@${interaction.user.id}> Has abierto un ticket de (${ticket.emoji} **${ticket.label}**). Espera que un <@&${ticket.roleId}> te atienda.`,embeds:[embed],components:[btns]});

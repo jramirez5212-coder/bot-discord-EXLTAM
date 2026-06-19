@@ -2,7 +2,8 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFl
 const fs   = require("fs");
 const path = require("path");
 
-const CANAL_LOGS_ROLAS_ID = "1516259267374612500"; // canal donde Rolas Academy manda los mensajes
+const CANAL_LOGS_ROLAS_ID  = "1516259267374612500"; // canal donde Rolas Academy manda los mensajes
+const CANAL_ALERTAS_ID     = "1517620722833424394"; // canal donde van las alertas de armario
 const BOT_ROLAS_NAME      = "Rolas Academy";        // nombre del bot externo
 const DATA_FILE           = path.join(__dirname, "../../armario_data.json");
 
@@ -73,14 +74,19 @@ function parsearLinea(linea) {
 // ── Handler principal ─────────────────────────────────────────────────────────
 async function handleArmarioLogs(message) {
   if (message.channel.id !== CANAL_LOGS_ROLAS_ID) return;
-  if (!message.author.bot && !message.webhookId) return;
+  // No filtramos por bot/webhook - aceptamos cualquier mensaje en este canal
+  // que tenga el formato de Rolas Academy
+  if (message.author.id === message.client.user.id) return; // ignorar mensajes del propio bot
 
-  // Debug: mostrar en consola el mensaje recibido para verificar el formato
-  console.log(`[ARMARIO] Msg de ${message.author.username} (webhook:${!!message.webhookId}):`);
-  console.log(message.content?.slice(0, 300));
+  // Debug completo
+  console.log(`[ARMARIO] Msg de "${message.author.username}" (bot:${message.author.bot}, webhook:${!!message.webhookId}, appId:${message.applicationId}):`);
+  console.log(`[ARMARIO] Contenido: ${message.content?.slice(0, 500)}`);
 
   const lineas = message.content?.split("\n").filter(Boolean) || [];
-  if (!lineas.length) return;
+  if (!lineas.length) {
+    console.log("[ARMARIO] Sin líneas de texto, ignorando.");
+    return;
+  }
 
   const data   = loadArmario();
   const hoy    = fechaHoy();
@@ -156,9 +162,10 @@ async function handleArmarioLogs(message) {
 
   saveArmario(data);
 
-  // Mandar alertas en el mismo canal
+  // Mandar alertas al canal de alertas
   for (const alerta of alertas) {
     try {
+      const canalAlertas = await message.client.channels.fetch(CANAL_ALERTAS_ID).catch(() => message.channel);
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(`armario_ok:${alerta.userId}:${alerta.item}`)
@@ -169,7 +176,7 @@ async function handleArmarioLogs(message) {
           .setLabel("⚠️ Revisar este caso")
           .setStyle(ButtonStyle.Danger),
       );
-      await message.channel.send({
+      await canalAlertas.send({
         embeds: [new EmbedBuilder()
           .setColor(0xe74c3c)
           .setTitle("🚨 Alerta de Armario")
@@ -178,9 +185,9 @@ async function handleArmarioLogs(message) {
             `¿Qué hacemos? (Solo Staff puede responder)`
           )
           .addFields(
-            { name: "👤 Usuario",  value: alerta.tag,          inline: true },
-            { name: "🔫 Item",     value: alerta.item,         inline: true },
-            { name: "📦 Sacados hoy", value: `${alerta.total}`, inline: true },
+            { name: "👤 Usuario",     value: alerta.tag,          inline: true },
+            { name: "🔫 Item",        value: alerta.item,         inline: true },
+            { name: "📦 Sacados hoy", value: `${alerta.total}`,   inline: true },
           )
           .setTimestamp()],
         components: [row]

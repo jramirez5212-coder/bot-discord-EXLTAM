@@ -7,6 +7,11 @@ const TIEMPO_SILENCIADO_MS  = 8 * 60 * 1000; // 8 min
 const antiFarmeoTimers = new Map(); // userId -> timeout
 const CANAL_LOGS_VOZ_ID = "1516294458591674530";
 
+// Usuarios exentos del anti-farmeo
+const afkExemptos        = new Set(); // exentos totales (!desactivarafk)
+const afkExemptosMute    = new Set(); // exentos de detección por silenciado
+const afkExemptoDeaf     = new Set(); // exentos de detección por ensordecido
+
 // Sesiones activas en memoria
 const activeSessions = new Map();
 const pendingUpdates = new Map();
@@ -29,6 +34,9 @@ module.exports = {
   activeSessions,
   recoverSessions,
   handleAntiFarmeoButton,
+  afkExemptos,
+  afkExemptosMute,
+  afkExemptoDeaf,
 
   async execute(oldState, newState, client) {
     const member = newState.member || oldState.member;
@@ -124,20 +132,23 @@ module.exports = {
       const estaEnsordecido = newState.selfDeaf || newState.deaf;
       const estaSilenciado  = (newState.selfMute || newState.mute) && !estaEnsordecido;
 
-      if (estaEnsordecido || estaSilenciado) {
-        // Solo arrancar timer si no hay uno ya corriendo para este usuario
+      // Verificar si está exento
+      const exentoTotal    = afkExemptos.has(userId);
+      const exentoDeaf     = afkExemptoDeaf.has(userId);
+      const exentoMute     = afkExemptosMute.has(userId);
+
+      if ((estaEnsordecido && !exentoTotal && !exentoDeaf) ||
+          (estaSilenciado  && !exentoTotal && !exentoMute)) {
         if (!antiFarmeoTimers.has(userId)) {
           const tiempoEspera = estaEnsordecido ? TIEMPO_ENSORDECIDO_MS : TIEMPO_SILENCIADO_MS;
           const timer = setTimeout(() => enviarChequeoAntiFarmeo(member, client, userId), tiempoEspera);
           antiFarmeoTimers.set(userId, timer);
         }
       } else {
-        // Ya no está ensordecido ni silenciado: cancelar timer
         clearTimeout(antiFarmeoTimers.get(userId));
         antiFarmeoTimers.delete(userId);
       }
     } else {
-      // Salió del canal o entró a AFK: cancelar timer
       clearTimeout(antiFarmeoTimers.get(userId));
       antiFarmeoTimers.delete(userId);
     }
