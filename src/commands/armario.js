@@ -1,4 +1,4 @@
-const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require("discord.js");
 const fs   = require("fs");
 const path = require("path");
 
@@ -6,12 +6,8 @@ const CANAL_LOGS_ROLAS_ID = "1516259267374612500"; // canal donde Rolas Academy 
 const BOT_ROLAS_NAME      = "Rolas Academy";        // nombre del bot externo
 const DATA_FILE           = path.join(__dirname, "../../armario_data.json");
 
-// Umbrales para alertas de "está sacando mucho"
-const ALERTAS = [
-  { cantidad: 5,  mensaje: "👀 **OJO** — {usuario} ya sacó **{total}** {arma} hoy. ¿Está acumulando?" },
-  { cantidad: 10, mensaje: "⚠️ **ALERTA** — {usuario} lleva **{total}** {arma} sacadas hoy. Revisar." },
-  { cantidad: 20, mensaje: "🚨 **MUCHAS** — {usuario} tiene **{total}** {arma} sacadas hoy. ¡Ojo con esto!" },
-];
+// Umbral para alerta de "está sacando mucho"
+const ALERTA_UMBRAL = 6;
 
 // ── Persistencia ──────────────────────────────────────────────────────────────
 function loadArmario() {
@@ -39,27 +35,51 @@ function fechaHoy() {
 // "@usuario metio N WEAPON_XXX en banda_exlatam (stock)"
 // "@usuario saco N money de banda_exlatam (stock)"
 // "@usuario metio N money en banda_exlatam (stock)"
+// Parser compatible con ambos formatos:
+// "@username saco N ITEM de banda_exlatam (stock)"  ← formato Rolas Academy
+// "<@123456> saco N ITEM de banda_exlatam (stock)"  ← menciones Discord
 function parsearLinea(linea) {
-  const regex = /^<@!?(\d+)>\s+(saco|metio)\s+(\d+)\s+(\S+)\s+(de|en)\s+\S+\s+\((\d+)\)/i;
-  const match = linea.match(regex);
-  if (!match) return null;
-  return {
-    userId:  match[1],
-    accion:  match[2].toLowerCase(), // "saco" | "metio"
-    cantidad: parseInt(match[3]),
-    item:    match[4].toUpperCase(), // "WEAPON_SMG", "money", etc.
-    stock:   parseInt(match[6]),
-  };
+  // Intenta primero con mención Discord
+  const regexMencion = /^<@!?(\d+)>\s+(saco|metio)\s+(\d+)\s+(\S+)\s+(?:de|en)\s+\S+\s+\((\d+)\)/i;
+  const matchMencion = linea.match(regexMencion);
+  if (matchMencion) {
+    return {
+      userId:   matchMencion[1],
+      username: null,
+      accion:   matchMencion[2].toLowerCase(),
+      cantidad: parseInt(matchMencion[3]),
+      item:     matchMencion[4].toUpperCase(),
+      stock:    parseInt(matchMencion[5]),
+    };
+  }
+
+  // Formato texto plano: @username saco N ITEM de/en banda_exlatam (stock)
+  const regexPlano = /^@(\S+)\s+(saco|metio)\s+(\d+)\s+(\S+)\s+(?:de|en)\s+\S+\s+\((\d+)\)/i;
+  const matchPlano = linea.match(regexPlano);
+  if (matchPlano) {
+    return {
+      userId:   null,
+      username: matchPlano[1].toLowerCase(), // ej: "ploff", "sleezy.gg"
+      accion:   matchPlano[2].toLowerCase(),
+      cantidad: parseInt(matchPlano[3]),
+      item:     matchPlano[4].toUpperCase(),
+      stock:    parseInt(matchPlano[5]),
+    };
+  }
+
+  return null;
 }
 
 // ── Handler principal ─────────────────────────────────────────────────────────
 async function handleArmarioLogs(message) {
   if (message.channel.id !== CANAL_LOGS_ROLAS_ID) return;
-  if (!message.author.bot) return;
-  if (!message.author.username.includes("Rolas Academy") &&
-      !message.webhookId) return;
+  if (!message.author.bot && !message.webhookId) return;
 
-  const lineas = message.content.split("\n").filter(Boolean);
+  // Debug: mostrar en consola el mensaje recibido para verificar el formato
+  console.log(`[ARMARIO] Msg de ${message.author.username} (webhook:${!!message.webhookId}):`);
+  console.log(message.content?.slice(0, 300));
+
+  const lineas = message.content?.split("\n").filter(Boolean) || [];
   if (!lineas.length) return;
 
   const data   = loadArmario();
@@ -70,14 +90,39 @@ async function handleArmarioLogs(message) {
     const parsed = parsearLinea(linea);
     if (!parsed) continue;
 
-    // Necesitamos el tag del usuario — intentamos resolverlo desde la mención
-    let tag = `<@${parsed.userId}>`;
-    try {
-      const member = await message.guild.members.fetch(parsed.userId).catch(() => null);
-      if (member) tag = member.user.tag;
-    } catch {}
+    // Resolver userId y tag
+    let userId = parsed.userId;
+    let tag    = parsed.username || `<@${userId}>`;
 
-    const ud = getUsuario(data, parsed.userId, tag);
+    if (!userId && parsed.username) {
+      // Buscar miembro por username en el servidor
+      try {
+        await message.guild.members.fetch();
+        const member = message.guild.members.cache.find(m =>
+          m.user.username.toLowerCase() === parsed.username ||
+          m.user.tag.toLowerCase().startsWith(parsed.username) ||
+          m.displayName.toLowerCase() === parsed.username
+        );
+        if (member) {
+          userId = member.id;
+          tag    = member.user.tag;
+        } else {
+          // No encontrado: usar username como clave
+          userId = `username:${parsed.username}`;
+          tag    = parsed.username;
+        }
+      } catch {
+        userId = `username:${parsed.username}`;
+        tag    = parsed.username;
+      }
+    } else if (userId) {
+      try {
+        const member = await message.guild.members.fetch(userId).catch(() => null);
+        if (member) tag = member.user.tag;
+      } catch {}
+    }
+
+    const ud = getUsuario(data, userId, tag);
     const { item, accion, cantidad } = parsed;
 
     // Inicializar arma si no existe
@@ -93,22 +138,17 @@ async function handleArmarioLogs(message) {
       ud.armas[item][accion]       += cantidad;
       ud.hoy[hoy][item][accion]    += cantidad;
 
-      // Verificar alertas si sacó
+      // Verificar alerta si sacó 6 o más del mismo item hoy
       if (accion === "saco") {
         const totalHoySacado = ud.hoy[hoy][item].saco;
-        for (const alerta of ALERTAS) {
-          if (totalHoySacado === alerta.cantidad) {
-            alertas.push({
-              userId: parsed.userId,
-              tag,
-              item,
-              total: totalHoySacado,
-              msg: alerta.mensaje
-                .replace("{usuario}", `<@${parsed.userId}>`)
-                .replace("{total}", totalHoySacado)
-                .replace("{arma}", item),
-            });
-          }
+        if (totalHoySacado >= ALERTA_UMBRAL && (totalHoySacado - parsed.cantidad) < ALERTA_UMBRAL) {
+          // Solo dispara la alerta la primera vez que cruza el umbral
+          alertas.push({
+            userId,
+            tag,
+            item,
+            total: totalHoySacado,
+          });
         }
       }
     }
@@ -119,12 +159,31 @@ async function handleArmarioLogs(message) {
   // Mandar alertas en el mismo canal
   for (const alerta of alertas) {
     try {
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`armario_ok:${alerta.userId}:${alerta.item}`)
+          .setLabel("✅ Está bien, es normal")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`armario_rev:${alerta.userId}:${alerta.item}`)
+          .setLabel("⚠️ Revisar este caso")
+          .setStyle(ButtonStyle.Danger),
+      );
       await message.channel.send({
         embeds: [new EmbedBuilder()
           .setColor(0xe74c3c)
-          .setTitle("🔫 Alerta de Armario")
-          .setDescription(alerta.msg)
-          .setTimestamp()]
+          .setTitle("🚨 Alerta de Armario")
+          .setDescription(
+            `<@${alerta.userId}> ya sacó **${alerta.total} ${alerta.item}** hoy.\n\n` +
+            `¿Qué hacemos? (Solo Staff puede responder)`
+          )
+          .addFields(
+            { name: "👤 Usuario",  value: alerta.tag,          inline: true },
+            { name: "🔫 Item",     value: alerta.item,         inline: true },
+            { name: "📦 Sacados hoy", value: `${alerta.total}`, inline: true },
+          )
+          .setTimestamp()],
+        components: [row]
       });
     } catch (e) {
       console.error("[ARMARIO] Error alerta:", e.message);
@@ -207,4 +266,71 @@ async function handleTopArmario(message) {
   await message.reply({ embeds: [embed] });
 }
 
-module.exports = { handleArmarioLogs, handleArmarioCommand, handleTopArmario };
+// ── Comando !topmetio ─────────────────────────────────────────────────────────
+async function handleTopMetio(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!topmetio")) return;
+
+  const data = loadArmario();
+  const hoy  = fechaHoy();
+
+  const ranking = Object.entries(data)
+    .map(([uid, ud]) => {
+      const totalGen = Object.values(ud.armas || {}).reduce((sum, v) => sum + (v.metio || 0), 0);
+      const armasHoy = ud.hoy?.[hoy] || {};
+      const totalHoy = Object.values(armasHoy).reduce((sum, v) => sum + (v.metio || 0), 0);
+      return { uid, tag: ud.tag, totalGen, totalHoy };
+    })
+    .filter(u => u.totalGen > 0)
+    .sort((a, b) => b.totalGen - a.totalGen)
+    .slice(0, 10);
+
+  if (!ranking.length) return message.reply("❌ No hay datos de armario registrados.");
+
+  const medalias = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
+  const lineas   = ranking.map((u, i) =>
+    `${medalias[i]} **${u.tag}** — ${u.totalGen} items metidos en total (hoy: ${u.totalHoy})`
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("📦 Top Armario — Items Metidos")
+    .setDescription(lineas.join("\n"))
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+// ── Handler botones de alerta de armario ──────────────────────────────────────
+async function handleArmarioAlertaButton(interaction) {
+  if (!interaction.isButton()) return;
+  const isOk  = interaction.customId.startsWith("armario_ok:");
+  const isRev = interaction.customId.startsWith("armario_rev:");
+  if (!isOk && !isRev) return;
+
+  const { STAFF_ROLE_ID } = require("../config");
+  if (!interaction.member.roles.cache.has(STAFF_ROLE_ID) &&
+      !interaction.member.permissions.has(8n))
+    return interaction.reply({ content: "❌ Solo Staff puede responder esto.", ephemeral: true });
+
+  const partes  = interaction.customId.split(":");
+  const userId  = partes[1];
+  const item    = partes[2];
+
+  try {
+    await interaction.update({
+      embeds: [EmbedBuilder.from(interaction.message.embeds[0])
+        .setColor(isOk ? 0x39FF14 : 0xe74c3c)
+        .setDescription(
+          isOk
+            ? `✅ **Marcado como normal** por ${interaction.user}.\n<@${userId}> — ${item}`
+            : `⚠️ **Marcado para revisión** por ${interaction.user}.\n<@${userId}> — ${item}`
+        )],
+      components: []
+    });
+  } catch (e) {
+    console.error("[ARMARIO] Error botón alerta:", e.message);
+  }
+}
+
+module.exports = { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMetio, handleArmarioAlertaButton };

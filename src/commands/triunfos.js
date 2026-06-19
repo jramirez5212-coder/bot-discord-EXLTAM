@@ -106,9 +106,11 @@ async function handleTriunfos(message) {
 
   // Log en canal de logs
   try {
-    const canalLogs = await message.client.channels.fetch(CANAL_LOGS_ID);
+    const canalLogs = await message.client.channels.fetch(CANAL_LOGS_ID).catch(e => {
+      console.error("[TRIUNFOS] No se pudo obtener canal de logs:", e.message);
+      return null;
+    });
     if (canalLogs) {
-      // Top 3 actual
       const top3 = Object.entries(data)
         .sort((a, b) => b[1].total - a[1].total)
         .slice(0, 3)
@@ -125,6 +127,9 @@ async function handleTriunfos(message) {
         )
         .setTimestamp();
       await canalLogs.send({ embeds: [logEmbed] });
+      console.log(`[TRIUNFOS] Log enviado para ${message.author.tag} — triunfo #${totalUsuario}`);
+    } else {
+      console.error("[TRIUNFOS] Canal de logs no encontrado:", CANAL_LOGS_ID);
     }
   } catch (e) {
     console.error("[TRIUNFOS] Error enviando log:", e.message);
@@ -134,4 +139,59 @@ async function handleTriunfos(message) {
   await ensurePinnedTriunfos(message.channel);
 }
 
-module.exports = { handleTriunfos };
+// ── Comandos de ranking ───────────────────────────────────────────────────────
+async function handleTopTriunfos(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!toptriunfos")) return;
+
+  const data = loadTriunfos();
+  const ranking = Object.entries(data)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 10);
+
+  if (!ranking.length) return message.reply("❌ No hay triunfos registrados todavía.");
+
+  const medalias = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
+  const lineas   = ranking.map(([, v], i) =>
+    `${medalias[i]} **${v.tag}** — ${v.total} triunfo${v.total === 1 ? "" : "s"}`
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setTitle("🏆 Top Triunfos del Mes")
+    .setDescription(lineas.join("\n"))
+    .setFooter({ text: "¡El que más acumule se lleva el premio! 🎁" })
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+async function handleMisTriunfos(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!mistriunfos")) return;
+
+  const data = loadTriunfos();
+  const target = message.mentions.members.first() || message.member;
+  const ud = data[target.id];
+
+  if (!ud || ud.total === 0)
+    return message.reply(`❌ ${target} no tiene triunfos registrados todavía.`);
+
+  // Posición en el ranking
+  const ranking = Object.entries(data).sort((a, b) => b[1].total - a[1].total);
+  const pos = ranking.findIndex(([id]) => id === target.id) + 1;
+
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setTitle(`🏆 Triunfos de ${target.user.tag}`)
+    .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
+    .setDescription(
+      `🎯 **Total de triunfos:** ${ud.total}\n` +
+      `📊 **Posición en el ranking:** #${pos} de ${ranking.length}`
+    )
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+module.exports = { handleTriunfos, ensurePinnedTriunfos, CANAL_TRIUNFOS_ID, handleTopTriunfos, handleMisTriunfos };

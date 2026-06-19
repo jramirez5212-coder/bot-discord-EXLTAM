@@ -21,6 +21,15 @@ const RANKS = {
 
 let panelMessageId = null;
 
+function diffEnPalabras(diffMin) {
+  if (diffMin < 1)   return "ahora mismo";
+  if (diffMin < 60)  return `en ${diffMin} minuto${diffMin === 1 ? "" : "s"}`;
+  const horas = Math.floor(diffMin / 60);
+  const mins  = diffMin % 60;
+  if (mins === 0) return `en ${horas} hora${horas === 1 ? "" : "s"}`;
+  return `en ${horas}h ${mins}min`;
+}
+
 // ── PANEL DE EVENTOS ──────────────────────────────────────────────────────────
 function buildPanelEmbed(EVENTOS) {
   const ahora = (() => {
@@ -42,22 +51,22 @@ function buildPanelEmbed(EVENTOS) {
       break;
     }
   }
-  // Si no hay ninguno que haya pasado, el actual es el último del día anterior
   if (!eventoActual) {
     eventoActual    = ordenados[ordenados.length - 1];
     eventoActualIdx = ordenados.length - 1;
   }
 
-  // Próximos 2 eventos
+  // Próximos 2 eventos con timestamp de Discord para cuenta regresiva nativa
   const proximos = [];
   for (let i = 1; i <= 2; i++) {
-    const idx = (eventoActualIdx + i) % ordenados.length;
-    const e   = ordenados[idx];
+    const idx     = (eventoActualIdx + i) % ordenados.length;
+    const e       = ordenados[idx];
     const diffMin = (horaAMin(e.hora) - ahora + 1440) % 1440;
-    proximos.push({ ...e, diffMin });
+    const tsUnix  = Math.floor(Date.now() / 1000) + diffMin * 60;
+    proximos.push({ ...e, diffMin, tsUnix });
   }
 
-  const emoji = EMOJIS[eventoActual.tipo] || "🎮";
+  const emoji    = EMOJIS[eventoActual.tipo] || "🎮";
   const rankInfo = RANKS[eventoActual.rank] || {};
 
   const embed = new EmbedBuilder()
@@ -73,7 +82,7 @@ function buildPanelEmbed(EVENTOS) {
         name: "📅 ── EVENTOS PRÓXIMOS ──",
         value: proximos.map(e => {
           const em = EMOJIS[e.tipo] || "🎮";
-          return `${e.hora} — ${em} **${e.nombre}**${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**\n⏳ En ${e.diffMin} minutos`;
+          return `${e.hora} — ${em} **${e.nombre}**${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**\n⏳ ${diffEnPalabras(e.diffMin)}`;
         }).join("\n\n"),
         inline: false
       }
@@ -171,7 +180,7 @@ async function handlePanelButton(interaction, EVENTOS) {
         `📅 **Hora:** ${proximo.hora}\n` +
         `🏅 **Rank:** ${proximo.rank}\n` +
         `${proximo.puntos ? `🎯 **Puntos:** ${proximo.puntos}\n` : ""}` +
-        `⏳ **En:** ${diffMin} minutos`
+        `⏳ **${diffEnPalabras(diffMin)}**`
       )
       .setTimestamp();
 
@@ -179,50 +188,86 @@ async function handlePanelButton(interaction, EVENTOS) {
   }
 }
 
-// ── CREADOR DE EMBEDS ─────────────────────────────────────────────────────────
-// Uso: !embed #canal | titulo | descripcion | #color | logo_url | banner_url | footer
+// ── CREADOR DE EMBEDS MODO ENCUESTA ──────────────────────────────────────────
+const embedSesiones = new Map(); // userId -> { paso, datos, canal }
+
 async function handleEmbedCreator(message) {
   if (message.author.bot) return;
-  if (!message.content.trim().startsWith("!embed")) return;
-  if (!message.member.permissions.has(PermissionFlagsBits.Administrator))
-    return message.reply("❌ Solo el admin/dueño puede usar este comando.");
+  if (!message.member?.permissions.has(PermissionFlagsBits.Administrator)) return;
 
-  const args = message.content.slice("!embed".length).trim();
-  const partes = args.split("|").map(p => p.trim());
+  const content = message.content.trim();
 
-  if (partes.length < 2) {
-    return message.reply(
-      "❌ Uso correcto:\n" +
-      "`!embed #canal | titulo | descripcion | #color | logo_url | banner_url | footer`\n\n" +
-      "Solo son obligatorios `#canal` y `titulo`. El resto es opcional. Usa `_` para dejar un campo vacío.\n\n" +
-      "**Ejemplo:**\n" +
-      "`!embed #anuncios | ¡Nuevo evento! | Hay torneo hoy a las 20:00 | #39FF14 | https://logo.png | https://banner.png | EXLATAM`"
-    );
+  // Iniciar con !embed
+  if (content.toLowerCase() === "!embed") {
+    if (embedSesiones.has(message.author.id)) {
+      embedSesiones.delete(message.author.id);
+    }
+    embedSesiones.set(message.author.id, { paso: "canal", datos: {} });
+    return message.reply("📝 **Creador de embeds**\n\n¿En qué canal quieres enviar el embed? (menciona el canal con #)");
   }
 
-  const [canalMencion, titulo, descripcion, colorHex, logoUrl, bannerUrl, footer] = partes;
-  const canalId = canalMencion.replace(/[<#>]/g, "");
-  const canal   = await message.guild.channels.fetch(canalId).catch(() => null);
+  // Continuar sesión activa
+  const sesion = embedSesiones.get(message.author.id);
+  if (!sesion) return;
 
-  if (!canal) return message.reply("❌ No encontré ese canal. Asegúrate de mencionarlo con #.");
+  const skip = content === "-"; // escribir - para omitir un campo
 
-  const color = colorHex && colorHex !== "_" && colorHex.startsWith("#")
-    ? parseInt(colorHex.replace("#", ""), 16)
-    : 0x39FF14;
+  if (sesion.paso === "canal") {
+    const canal = message.mentions.channels.first();
+    if (!canal) return message.reply("❌ Menciona el canal con #. Ejemplo: `#anuncios`");
+    sesion.datos.canal = canal;
+    sesion.paso = "titulo";
+    return message.reply("✅ Canal: " + canal + "\n\n**¿Cuál es el título del embed?**");
+  }
 
-  const embed = new EmbedBuilder().setColor(color).setTimestamp();
+  if (sesion.paso === "titulo") {
+    if (skip) return message.reply("❌ El título es obligatorio.");
+    sesion.datos.titulo = content;
+    sesion.paso = "descripcion";
+    return message.reply(`✅ Título guardado.\n\n**¿Descripción?** (escribe \`-\` para omitir)`);
+  }
 
-  if (titulo && titulo !== "_")      embed.setTitle(titulo);
-  if (descripcion && descripcion !== "_") embed.setDescription(descripcion);
-  if (logoUrl && logoUrl !== "_")    embed.setThumbnail(logoUrl);
-  if (bannerUrl && bannerUrl !== "_") embed.setImage(bannerUrl);
-  if (footer && footer !== "_")      embed.setFooter({ text: footer });
+  if (sesion.paso === "descripcion") {
+    sesion.datos.descripcion = skip ? null : content;
+    sesion.paso = "color";
+    return message.reply(`✅ Descripción guardada.\n\n**¿Color?** Pon un hex como \`#39FF14\` (escribe \`-\` para verde por defecto)`);
+  }
 
-  try {
-    await canal.send({ embeds: [embed] });
-    await message.reply(`✅ Embed enviado en ${canal}.`);
-  } catch (e) {
-    await message.reply(`❌ No pude enviar el embed en ese canal: ${e.message}`);
+  if (sesion.paso === "color") {
+    sesion.datos.color = skip ? 0x39FF14 : parseInt(content.replace("#", ""), 16) || 0x39FF14;
+    sesion.paso = "logo";
+    return message.reply(`✅ Color guardado.\n\n**¿Logo/thumbnail?** (URL de imagen, o \`-\` para omitir)`);
+  }
+
+  if (sesion.paso === "logo") {
+    sesion.datos.logo = skip ? null : content;
+    sesion.paso = "banner";
+    return message.reply(`✅ Logo guardado.\n\n**¿Banner/imagen principal?** (URL de imagen, o \`-\` para omitir)`);
+  }
+
+  if (sesion.paso === "banner") {
+    sesion.datos.banner = skip ? null : content;
+    sesion.paso = "footer";
+    return message.reply(`✅ Banner guardado.\n\n**¿Texto del footer?** (o \`-\` para omitir)`);
+  }
+
+  if (sesion.paso === "footer") {
+    sesion.datos.footer = skip ? null : content;
+    embedSesiones.delete(message.author.id);
+
+    const { canal, titulo, descripcion, color, logo, banner, footer } = sesion.datos;
+    const embed = new EmbedBuilder().setColor(color).setTitle(titulo).setTimestamp();
+    if (descripcion) embed.setDescription(descripcion);
+    if (logo)        embed.setThumbnail(logo);
+    if (banner)      embed.setImage(banner);
+    if (footer)      embed.setFooter({ text: footer });
+
+    try {
+      await canal.send({ embeds: [embed] });
+      await message.reply(`✅ ¡Embed enviado en ${canal}!`);
+    } catch (e) {
+      await message.reply(`❌ No pude enviar el embed: ${e.message}`);
+    }
   }
 }
 

@@ -33,8 +33,8 @@ const { handleTandas }             = require("./src/commands/tandas");
 const { handleInactividadDecision } = require("./src/commands/inactividadDecision");
 const { handleMigrarRoles }        = require("./src/commands/migrarRoles");
 const { handleComandosFijados, ensurePinnedCommands, COMANDOS_POR_CANAL } = require("./src/commands/comandosFijados");
-const { handleTriunfos }           = require("./src/commands/triunfos");
-const { handleArmarioLogs, handleArmarioCommand, handleTopArmario } = require("./src/commands/armario");
+const { handleTriunfos, ensurePinnedTriunfos, CANAL_TRIUNFOS_ID, handleTopTriunfos, handleMisTriunfos } = require("./src/commands/triunfos");
+const { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMetio, handleArmarioAlertaButton } = require("./src/commands/armario");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
 const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require("./src/tasks/calendarioTask");
@@ -305,6 +305,11 @@ client.once("clientReady", async () => {
   startInactividadTask(client);
   startCalendarioTask(client);
   await initPanelEventos(client, EVENTOS).catch(e => console.log("⚠️ Panel eventos:", e.message));
+  // Mensaje fijado de triunfos al iniciar
+  try {
+    const canalTriunfos = await client.channels.fetch(CANAL_TRIUNFOS_ID);
+    if (canalTriunfos) await ensurePinnedTriunfos(canalTriunfos);
+  } catch (e) { console.log("⚠️ Triunfos pin:", e.message); }
   await botLog("🟢","Bot iniciado",`Conectado como **${client.user.tag}**`,"auto");
   await sendAutoPostulacionesPanel("auto").catch(e=>console.log("⚠️",e.message));
   await sendTicketPanelViejo().catch(e=>console.log("⚠️ Panel viejo:",e.message));
@@ -366,9 +371,12 @@ client.on("messageCreate", async message => {
     await handleMigrarRoles(message, client);
     await handleEmbedCreator(message);
     await handleTriunfos(message);
+    await handleTopTriunfos(message);
+    await handleMisTriunfos(message);
     await handleArmarioLogs(message);
     await handleArmarioCommand(message);
     await handleTopArmario(message);
+    await handleTopMetio(message);
     await handleComandosFijados(message);
 
     if (message.content.trim().toLowerCase() === "!panel") {
@@ -424,6 +432,7 @@ client.on("interactionCreate", async interaction => {
     await handleInactividadDecision(interaction, client);
     await voiceEvent.handleAntiFarmeoButton(interaction);
     await handleInscripcionButton(interaction);
+    await handleArmarioAlertaButton(interaction);
     await handlePanelButton(interaction, EVENTOS);
     if (interaction.replied || interaction.deferred) return;
 
