@@ -36,6 +36,8 @@ const { handleComandosFijados, ensurePinnedCommands, COMANDOS_POR_CANAL } = requ
 const { handleTriunfos }           = require("./src/commands/triunfos");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
+const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require("./src/tasks/calendarioTask");
+const { initPanelEventos, handlePanelButton, handleEmbedCreator } = require("./src/commands/panelEventos");
 
 global.isExcused = isExcused;
 
@@ -300,6 +302,8 @@ client.once("clientReady", async () => {
   recoverTorneoRoles(client);
   startActividadTask(client);
   startInactividadTask(client);
+  startCalendarioTask(client);
+  await initPanelEventos(client, EVENTOS).catch(e => console.log("⚠️ Panel eventos:", e.message));
   await botLog("🟢","Bot iniciado",`Conectado como **${client.user.tag}**`,"auto");
   await sendAutoPostulacionesPanel("auto").catch(e=>console.log("⚠️",e.message));
   await sendTicketPanelViejo().catch(e=>console.log("⚠️ Panel viejo:",e.message));
@@ -359,6 +363,7 @@ client.on("messageCreate", async message => {
     await handleNuevoFotoSS(message, client);
     await handleTandas(message);
     await handleMigrarRoles(message, client);
+    await handleEmbedCreator(message);
     await handleTriunfos(message);
     await handleComandosFijados(message);
 
@@ -414,6 +419,8 @@ client.on("interactionCreate", async interaction => {
     await handleChiteadoButton(interaction, client);
     await handleInactividadDecision(interaction, client);
     await voiceEvent.handleAntiFarmeoButton(interaction);
+    await handleInscripcionButton(interaction);
+    await handlePanelButton(interaction, EVENTOS);
     if (interaction.replied || interaction.deferred) return;
 
     if (interaction.isModalSubmit()) {
