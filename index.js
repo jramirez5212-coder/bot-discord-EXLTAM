@@ -374,9 +374,6 @@ client.on("messageCreate", async message => {
     await handleAnuncioCmd(message);
     await handleRecordatorio(message);
     await handleEncuesta(message);
-    await handleEncuesta(message);
-    await handleAnuncio(message);
-    await handleRecordatorio(message);
     await handleTriunfos(message);
     await handleTopTriunfos(message);
     await handleMisTriunfos(message);
