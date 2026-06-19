@@ -101,6 +101,12 @@ function buildListadoEmbed(EVENTOS) {
 }
 
 async function initPanelEventos(client, EVENTOS) {
+  // Actualizar al iniciar y luego cada minuto
+  await actualizarPanel(client, EVENTOS);
+  setInterval(() => actualizarPanel(client, EVENTOS), 60 * 1000);
+}
+
+async function actualizarPanel(client, EVENTOS) {
   try {
     const canal = await client.channels.fetch(CANAL_PANEL_EVENTOS);
     if (!canal) return;
@@ -120,7 +126,7 @@ async function initPanelEventos(client, EVENTOS) {
       } catch {}
     }
 
-    // Buscar mensaje existente del bot en el canal
+    // Buscar mensaje existente del bot
     const msgs = await canal.messages.fetch({ limit: 20 });
     const existing = msgs.find(m => m.author.id === client.user.id && m.embeds.length > 0);
     if (existing) {

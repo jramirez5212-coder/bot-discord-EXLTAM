@@ -222,10 +222,30 @@ function startCalendarioTask(client) {
         else if (evento.tipo === "tormenta")                       await lanzarTormenta(client);
         else if (evento.tipo === "battle") {
           const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
-          if (canal) await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}> !battle` });
+          if (canal) {
+            await canal.send({ content: `!battle` });
+            await canal.send({
+              content: `<@&${ACTIVITY_ROLE_ID}>`,
+              embeds: [new EmbedBuilder()
+                .setColor(0xff6b00)
+                .setTitle("💥 x1 Battle Royale")
+                .setDescription(`¡**BATTLE ROYALE** comenzando ahora! → Rank **${evento.rank}**\n\n🎮 ¡Entren al canal de voz!`)
+                .setTimestamp()]
+            });
+          }
         } else if (evento.tipo === "drop") {
           const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
-          if (canal) await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}> !drop` });
+          if (canal) {
+            await canal.send({ content: `!drop` });
+            await canal.send({
+              content: `<@&${ACTIVITY_ROLE_ID}>`,
+              embeds: [new EmbedBuilder()
+                .setColor(0xe74c3c)
+                .setTitle("🎁 DROP DEL DÍA")
+                .setDescription(`¡**DROP DEL DÍA** disponible ahora! → Rank **${evento.rank}**\n\n🎮 ¡Entren al canal de voz!`)
+                .setTimestamp()]
+            });
+          }
         }
       }},
     ];

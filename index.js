@@ -34,6 +34,7 @@ const { handleInactividadDecision } = require("./src/commands/inactividadDecisio
 const { handleMigrarRoles }        = require("./src/commands/migrarRoles");
 const { handleComandosFijados, ensurePinnedCommands, COMANDOS_POR_CANAL } = require("./src/commands/comandosFijados");
 const { handleTriunfos }           = require("./src/commands/triunfos");
+const { handleArmarioLogs, handleArmarioCommand, handleTopArmario } = require("./src/commands/armario");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
 const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require("./src/tasks/calendarioTask");
@@ -365,6 +366,9 @@ client.on("messageCreate", async message => {
     await handleMigrarRoles(message, client);
     await handleEmbedCreator(message);
     await handleTriunfos(message);
+    await handleArmarioLogs(message);
+    await handleArmarioCommand(message);
+    await handleTopArmario(message);
     await handleComandosFijados(message);
 
     if (message.content.trim().toLowerCase() === "!panel") {

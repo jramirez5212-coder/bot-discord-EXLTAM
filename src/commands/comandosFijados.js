@@ -64,8 +64,9 @@ async function ensurePinnedCommands(channel) {
 
 // Se llama en cada mensaje nuevo en canales de comandos (después de procesar el comando)
 async function handleComandosFijados(message) {
-  if (message.author.bot) return;
   if (!COMANDOS_POR_CANAL[message.channel.id]) return;
+  // Ignorar el propio mensaje fijado de comandos para no entrar en loop
+  if (message.author.bot && pinnedMessages.get(message.channel.id) === message.id) return;
   await ensurePinnedCommands(message.channel);
 }
 
