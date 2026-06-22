@@ -39,9 +39,11 @@ const { handleComandosFijados, ensurePinnedCommands, COMANDOS_POR_CANAL } = requ
 const { handleTriunfos, ensurePinnedTriunfos, CANAL_TRIUNFOS_ID, handleTopTriunfos, handleMisTriunfos } = require("./src/commands/triunfos");
 const { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMetio, handleArmarioAlertaButton } = require("./src/commands/armario");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
+const { startActividadRushTask }   = require("./src/tasks/actividadRushTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
 const { startInactividadRushTask } = require("./src/tasks/inactividadRushTask");
 const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require("./src/tasks/calendarioTask");
+const { startCalendarioRushTask, handleInscripcionRushButton, EVENTOS: EVENTOS_RUSH } = require("./src/tasks/calendarioRushTask");
 const { initPanelEventos, handlePanelButton, handleEmbedCreator, handleAnuncioCmd, handleRecordatorio, handleEncuesta } = require("./src/commands/panelEventos");
 
 global.isExcused = isExcused;
@@ -306,9 +308,11 @@ client.once("clientReady", async () => {
   voiceEvent.recoverSessions(client);
   recoverTorneoRoles(client);
   startActividadTask(client);
+  startActividadRushTask(client);
   startInactividadTask(client);
   startInactividadRushTask(client);
   startCalendarioTask(client);
+  startCalendarioRushTask(client);
   await initPanelEventos(client, EVENTOS).catch(e => console.log("⚠️ Panel eventos:", e.message));
   // Mensaje fijado de triunfos al iniciar
   try {
@@ -489,6 +493,7 @@ client.on("interactionCreate", async interaction => {
     await handleRegresesButton(interaction, client);
     await voiceEvent.handleAntiFarmeoButton(interaction);
     await handleInscripcionButton(interaction);
+    await handleInscripcionRushButton(interaction);
     await handleArmarioAlertaButton(interaction);
     await handlePanelButton(interaction, EVENTOS);
     if (interaction.replied || interaction.deferred) return;
