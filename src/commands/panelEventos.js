@@ -20,6 +20,7 @@ const RANKS = {
 };
 
 let panelMessageId = null;
+let panelRushMessageId = null;
 
 function diffEnPalabras(diffMin) {
   if (diffMin < 1)   return "ahora mismo";
@@ -31,7 +32,7 @@ function diffEnPalabras(diffMin) {
 }
 
 // ── PANEL DE EVENTOS ──────────────────────────────────────────────────────────
-function buildPanelEmbed(EVENTOS) {
+function buildPanelEmbed(EVENTOS, label = 'ROLAS') {
   const ahora = (() => {
     const c = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
     return c.getHours() * 60 + c.getMinutes();
@@ -66,12 +67,11 @@ function buildPanelEmbed(EVENTOS) {
     proximos.push({ ...e, diffMin, tsUnix });
   }
 
-  const emoji    = EMOJIS[eventoActual.tipo] || "🎮";
-  const rankInfo = RANKS[eventoActual.rank] || {};
+  const COLOR_PANEL = label === "RUSH" ? 0x3498db : 0xFF69B4; // Azul RUSH, Rosado ROLAS
 
   const embed = new EmbedBuilder()
-    .setColor(rankInfo.color || 0x39FF14)
-    .setTitle("📊 Panel de Eventos — EXLATAM")
+    .setColor(COLOR_PANEL)
+    .setTitle(`📊 Panel de Eventos — ${label}`)
     .addFields(
       {
         name: "🟢 ── AHORA ──",
@@ -87,7 +87,7 @@ function buildPanelEmbed(EVENTOS) {
         inline: false
       }
     )
-    .setFooter({ text: `Sistema de Eventos — EXLATAM | Última actualización` })
+    .setFooter({ text: `Sistema de Eventos — ${label} | Última actualización` })
     .setTimestamp();
 
   return embed;
@@ -109,72 +109,72 @@ function buildListadoEmbed(EVENTOS) {
     .setTimestamp();
 }
 
-async function initPanelEventos(client, EVENTOS) {
-  // Actualizar al iniciar y luego cada minuto
-  await actualizarPanel(client, EVENTOS);
-  setInterval(() => actualizarPanel(client, EVENTOS), 60 * 1000);
+async function initPanelEventos(client, EVENTOS, EVENTOS_RUSH) {
+  await actualizarPanel(client, EVENTOS, EVENTOS_RUSH);
+  setInterval(() => actualizarPanel(client, EVENTOS, EVENTOS_RUSH), 60 * 1000);
 }
 
-async function actualizarPanel(client, EVENTOS) {
+async function actualizarPanelUnico(canal, client, EVENTOS, label, msgIdRef, customIdSuffix) {
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`panel_ver_todos${customIdSuffix}`).setLabel(`Ver todos — ${label}`).setEmoji("📋").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`panel_proximo_torneo${customIdSuffix}`).setLabel(`Próximo ${label}`).setEmoji("🏆").setStyle(label === "RUSH" ? ButtonStyle.Danger : ButtonStyle.Primary)
+  );
+  const embed = buildPanelEmbed(EVENTOS, label);
+  if (msgIdRef.id) {
+    try {
+      const msg = await canal.messages.fetch(msgIdRef.id);
+      await msg.edit({ embeds: [embed], components: [row] });
+      return;
+    } catch { msgIdRef.id = null; }
+  }
+  const msg = await canal.send({ embeds: [embed], components: [row] });
+  msgIdRef.id = msg.id;
+}
+
+const rolasRef = { id: null };
+const rushRef  = { id: null };
+
+async function actualizarPanel(client, EVENTOS, EVENTOS_RUSH) {
   try {
     const canal = await client.channels.fetch(CANAL_PANEL_EVENTOS);
     if (!canal) return;
-
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("panel_ver_todos").setLabel("Ver todos los eventos").setEmoji("📋").setStyle(ButtonStyle.Secondary),
-      new ButtonBuilder().setCustomId("panel_proximo_torneo").setLabel("Ver próximo torneo").setEmoji("🏆").setStyle(ButtonStyle.Primary)
-    );
-
-    const embed = buildPanelEmbed(EVENTOS);
-
-    if (panelMessageId) {
-      try {
-        const msg = await canal.messages.fetch(panelMessageId);
-        await msg.edit({ embeds: [embed], components: [row] });
-        return;
-      } catch {}
-    }
-
-    // Buscar mensaje existente del bot
-    const msgs = await canal.messages.fetch({ limit: 20 });
-    const existing = msgs.find(m => m.author.id === client.user.id && m.embeds.length > 0);
-    if (existing) {
-      panelMessageId = existing.id;
-      await existing.edit({ embeds: [embed], components: [row] });
-      return;
-    }
-
-    const msg = await canal.send({ embeds: [embed], components: [row] });
-    panelMessageId = msg.id;
+    await actualizarPanelUnico(canal, client, EVENTOS, "ROLAS", rolasRef, "");
+    if (EVENTOS_RUSH) await actualizarPanelUnico(canal, client, EVENTOS_RUSH, "RUSH", rushRef, "_rush");
   } catch (e) {
     console.error("[PANEL] Error:", e.message);
   }
 }
 
-async function handlePanelButton(interaction, EVENTOS) {
+async function handlePanelButton(interaction, EVENTOS, EVENTOS_RUSH) {
   if (!interaction.isButton()) return;
-  if (!["panel_ver_todos", "panel_proximo_torneo"].includes(interaction.customId)) return;
+  const validIds = ["panel_ver_todos","panel_proximo_torneo","panel_ver_todos_rush","panel_proximo_torneo_rush"];
+  if (!validIds.includes(interaction.customId)) return;
 
   function horaAMin(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
 
-  if (interaction.customId === "panel_ver_todos") {
-    const embed = buildListadoEmbed(EVENTOS);
+  const isRush = interaction.customId.endsWith("_rush");
+  const eventosUsar = isRush ? (EVENTOS_RUSH || EVENTOS) : EVENTOS;
+  const label = isRush ? "RUSH" : "ROLAS";
+
+  if (interaction.customId.startsWith("panel_ver_todos")) {
+    const embed = buildListadoEmbed(eventosUsar);
+    embed.setTitle(`📋 Listado de eventos — ${label}`);
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
-  if (interaction.customId === "panel_proximo_torneo") {
+  if (interaction.customId.startsWith("panel_proximo_torneo")) {
     const ahora = (() => {
       const c = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
       return c.getHours() * 60 + c.getMinutes();
     })();
-    const ordenados = [...EVENTOS].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
+    const ordenados = [...eventosUsar].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
     const proximo = ordenados.find(e => horaAMin(e.hora) > ahora) || ordenados[0];
     const diffMin = ((horaAMin(proximo.hora) - ahora) + 1440) % 1440;
     const emoji = EMOJIS[proximo.tipo] || "🎮";
 
     const embed = new EmbedBuilder()
-      .setColor(0x39FF14)
-      .setTitle(`${emoji} Próximo torneo`)
+      .setColor(isRush ? 0x3498db : 0xFF69B4)
+      .setTitle(`${emoji} Próximo torneo — ${label}`)
       .setDescription(
         `**${proximo.nombre}**\n` +
         `📅 **Hora:** ${proximo.hora}\n` +

@@ -248,18 +248,19 @@ async function sendApplicationToStaff(userId) {
   } catch(e) { console.log("❌", e.message); }
 }
 
-async function createResultTicket(userId, status, staffUser) {
+async function createResultTicket(userId, status, staffUser, banda = null) {
   try {
     const guild   = await client.guilds.fetch(config.guildId);
     const user    = await client.users.fetch(userId).catch(() => null);
     if (!user) return null;
     const approved = status === "aprobada";
+    const bandaLabel = banda ? `-${banda.toLowerCase()}` : "";
 
     const ch = await guild.channels.create({
-      name: `${approved?"aprobado":"rechazado"}-${cleanName(user.username)}`,
+      name: `${approved?"aprobado":"rechazado"}${bandaLabel}-${cleanName(user.username)}`,
       type: ChannelType.GuildText,
       parent: approved ? config.categoriaAprobadosId : config.categoriaRechazadosId,
-      topic: `postulacionUser:${userId} | status:${status} | staff:${staffUser.id} | createdAt:${Date.now()}`,
+      topic: `postulacionUser:${userId} | status:${status} | staff:${staffUser.id} | banda:${banda||"?"} | createdAt:${Date.now()}`,
       permissionOverwrites: [
         {id:guild.roles.everyone.id, deny:[PermissionFlagsBits.ViewChannel]},
         {id:userId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},
@@ -270,22 +271,23 @@ async function createResultTicket(userId, status, staffUser) {
     const embed = new EmbedBuilder()
       .setColor(approved ? COLOR : 0xff3c3c)
       .setAuthor({name:"EXLATAM Postulaciones", iconURL:config.logoUrl})
-      .setTitle(approved ? "✅ **POSTULACIÓN** Aprobada" : "❌ **POSTULACIÓN** Rechazada")
+      .setTitle(approved ? `✅ **POSTULACIÓN** Aprobada${banda ? ` — ${banda}` : ""}` : "❌ **POSTULACIÓN** Rechazada")
       .setDescription(approved
-        ? `Tu **POSTULACIÓN** fue **aprobada** por ${staffUser}.\n\nAhora pasas a la **segunda etapa del proceso**, la cual se realizará por **llamada**.\n\nCuando el staff te notifique, deberás entrar a la **sala de espera** para continuar con la entrevista.`
+        ? `Tu **POSTULACIÓN** fue **aprobada** por ${staffUser}.\n\nFuiste asignado a la banda **${banda || "?"}**.\n\nAhora pasas a la **segunda etapa del proceso**, la cual se realizará por **llamada**.\n\nCuando el staff te notifique, deberás entrar a la **sala de espera** para continuar con la entrevista.`
         : `Tu **POSTULACIÓN** fue **rechazada** por ${staffUser}.\n\nPuedes usar este ticket para preguntar el motivo o apelar la decisión de forma respetuosa.`
       )
       .addFields(
-        {name: "👤 Solicitante", value: `<@${userId}>`,      inline: true},
-        {name: "⚖️ Revisado por", value: `${staffUser}`,     inline: true},
+        {name: "👤 Solicitante",  value: `<@${userId}>`,      inline: true},
+        {name: "⚖️ Revisado por", value: `${staffUser}`,      inline: true},
         {name: "📊 Estado",       value: approved ? "`Aprobada`" : "`Rechazada`", inline: true},
+        ...(banda && approved ? [{name: "🎯 Banda", value: `**${banda}**`, inline: true}] : []),
       )
       .setThumbnail(config.logoUrl)
       .setFooter({text:config.guildName, iconURL:config.logoUrl})
       .setTimestamp();
 
     await ch.send({content:`<@${userId}> <@&${config.staffBandasRoleId}>`, embeds:[embed], components:[resultTicketButtons()]});
-    await botLog(approved?"✅":"❌", `Ticket ${approved?"aprobado":"rechazado"} creado`, `Usuario: <@${userId}> | Staff: ${staffUser} | Canal: ${ch}`, "auto");
+    await botLog(approved?"✅":"❌", `Ticket ${approved?"aprobado":"rechazado"} creado`, `Usuario: <@${userId}> | Staff: ${staffUser} | Banda: ${banda||"?"} | Canal: ${ch}`, "auto");
     return ch;
   } catch(e) { console.log("❌", e.message); return null; }
 }
@@ -314,7 +316,7 @@ client.once("clientReady", async () => {
   startInactividadRushTask(client);
   startCalendarioTask(client);
   startCalendarioRushTask(client);
-  await initPanelEventos(client, EVENTOS).catch(e => console.log("⚠️ Panel eventos:", e.message));
+  await initPanelEventos(client, EVENTOS, EVENTOS_RUSH).catch(e => console.log("⚠️ Panel eventos:", e.message));
   // Mensaje fijado de triunfos al iniciar
   try {
     const canalTriunfos = await client.channels.fetch(CANAL_TRIUNFOS_ID);
@@ -496,7 +498,7 @@ client.on("interactionCreate", async interaction => {
     await handleInscripcionButton(interaction);
     await handleInscripcionRushButton(interaction);
     await handleArmarioAlertaButton(interaction);
-    await handlePanelButton(interaction, EVENTOS);
+    await handlePanelButton(interaction, EVENTOS, EVENTOS_RUSH);
     if (interaction.replied || interaction.deferred) return;
 
     if (interaction.isModalSubmit()) {
@@ -588,7 +590,7 @@ client.on("interactionCreate", async interaction => {
         } catch(e) { console.error("[POSTULACION] Error asignando rol:", e.message); }
 
         await user.send({content:`✅ Tu **POSTULACIÓN** fue aprobada por ${interaction.user}.\n\nFuiste asignado a **${banda}**. Se creó un ticket para continuar. La segunda etapa será por llamada.`}).catch(()=>null);
-        const t=await createResultTicket(uid,"aprobada",interaction.user);
+        const t=await createResultTicket(uid,"aprobada",interaction.user, banda);
         await interaction.message.edit({components:[]}).catch(()=>null);
         return interaction.reply({content:`✅ Aprobada (${banda}). Ticket: ${t}`,ephemeral:true});
       }

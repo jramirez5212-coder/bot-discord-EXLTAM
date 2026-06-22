@@ -23,7 +23,14 @@ function getActiveSessions() {
 async function getGuild(client) {
   if (!guildCache) {
     guildCache = await client.guilds.fetch(GUILD_ID);
-    await guildCache.members.fetch();
+    try {
+      await guildCache.members.fetch();
+    } catch(e) {
+      // Rate limited — esperar 30 segundos y reintentar una vez
+      console.log("[ACTIVIDAD] Rate limit en members.fetch, reintentando en 30s...");
+      await new Promise(r => setTimeout(r, 30000));
+      try { await guildCache.members.fetch(); } catch {}
+    }
   }
   return guildCache;
 }
@@ -39,7 +46,8 @@ function startActividadTask(client) {
     try { if (guildCache) await guildCache.members.fetch(); } catch {}
   }, 10 * 60 * 1000);
   setInterval(() => checkTopSemanal(client), 60 * 1000);
-  setTimeout(() => updateEmbeds(client), 5000);
+  // Retrasar el primer update para dar tiempo al members.fetch
+  setTimeout(() => updateEmbeds(client), 35000);
 }
 
 async function updateEmbeds(client) {

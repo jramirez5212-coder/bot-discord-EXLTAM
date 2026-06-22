@@ -35,7 +35,7 @@ async function handleHoras(message, client) {
     const hoy      = todayKey();
 
     // Calcular estado del usuario
-    const _ses = activeSessions.get(target.id); const sesionTs = _ses && !sesion.isRush ? _ses.startMs : (userData.sessionStart || null);
+    const _ses = activeSessions.get(target.id); const sesionTs = _ses && !_ses.isRush ? _ses.startMs : (userData.sessionStart || null);
     const enVivo     = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
     const msHoy      = (userData.days?.[hoy]?.totalMs || 0) + enVivo;
     const estaEnVoz  = enVivo > 0;
@@ -87,7 +87,7 @@ async function handleHoras(message, client) {
     const ranking = [];
     for (const [id, member] of miembros) {
       const ud     = getUser(data, id);
-      const _ses2 = activeSessions.get(id); const sesionTs = _ses2 && !sesion.isRush ? _ses2.startMs : (ud.sessionStart || null);
+      const _ses2 = activeSessions.get(id); const sesionTs = _ses2 && !_ses2.isRush ? _ses2.startMs : (ud.sessionStart || null);
       const enVivo = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       ranking.push({ member, weekMs: (ud.weekMs||0)+enVivo, totalMs: ud.totalMs||0, enVivo: enVivo>0 });
     }
