@@ -3,23 +3,33 @@ const {
   TextInputStyle, ActionRowBuilder, ButtonBuilder, ButtonStyle
 } = require("discord.js");
 const { ACTIVITY_ROLE_ID, CANAL_INACTIVIDAD_ID, CANAL_CMD_INACTIVO,
-        BANNER_INACTIVIDAD, ROL_INACTIVO_ID,
-        GUILD_ID }             = require("../config");
+        BANNER_INACTIVIDAD, ROL_INACTIVO_ID, GUILD_ID,
+        RUSH_ACTIVITY_ROLE_ID, RUSH_ROL_INACTIVO_ID,
+        RUSH_CANAL_CMD_INACTIVO }  = require("../config");
 
 const excusasActivas = new Map();
 const cooldowns      = new Map();
 const COOLDOWN_MS    = 60 * 1000;
 const btnMessages    = new Map();
 
+// Detecta si el miembro es ROLAS, RUSH o ninguno
+function detectarSistema(member) {
+  if (member.roles.cache.has(ACTIVITY_ROLE_ID)) return "ROLAS";
+  if (member.roles.cache.has(RUSH_ACTIVITY_ROLE_ID)) return "RUSH";
+  return null;
+}
+
 async function handleInactividad(message) {
   if (message.author.bot) return;
   if (message.content.trim().toLowerCase() !== "!inactivo") return;
 
-  if (!message.member.roles.cache.has(ACTIVITY_ROLE_ID))
-    return message.reply("❌ No tienes permiso para usar este comando.");
+  const sistema = detectarSistema(message.member);
+  if (!sistema)
+    return message.reply("❌ No tienes un rol de actividad (ROLAS o RUSH) para usar este comando.");
 
-  if (message.channel.id !== CANAL_CMD_INACTIVO) {
-    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_INACTIVO}>`);
+  const canalValido = sistema === "ROLAS" ? CANAL_CMD_INACTIVO : RUSH_CANAL_CMD_INACTIVO;
+  if (message.channel.id !== canalValido) {
+    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${canalValido}>`);
     setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
     return;
   }
@@ -37,13 +47,13 @@ async function handleInactividad(message) {
   try { await message.delete(); } catch {}
 
   const embed = new EmbedBuilder()
-    .setColor(0x39ff3c).setTitle("📋 Justificación de Inactividad")
+    .setColor(0x39ff3c).setTitle(`📋 Justificación de Inactividad — ${sistema}`)
     .setDescription("Presiona el botón para llenar el formulario de inactividad.")
     .setImage(BANNER_INACTIVIDAD).setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
-      .setCustomId(`btn_inactivo:${message.author.id}`)
+      .setCustomId(`btn_inactivo:${message.author.id}:${sistema}`)
       .setLabel("Llenar formulario")
       .setStyle(ButtonStyle.Primary)
       .setEmoji("📋")
@@ -58,13 +68,16 @@ async function handleInactividadButton(interaction) {
   if (!interaction.isButton()) return;
   if (!interaction.customId.startsWith("btn_inactivo:")) return;
 
-  const ownerId = interaction.customId.split(":")[1];
+  const partes  = interaction.customId.split(":");
+  const ownerId = partes[1];
+  const sistema = partes[2] || "ROLAS";
+
   if (interaction.user.id !== ownerId)
     return interaction.reply({ content: "❌ Este botón no es para ti.", ephemeral: true });
 
   const modal = new ModalBuilder()
-    .setCustomId("modal_inactividad")
-    .setTitle("📋 Justificación de Inactividad");
+    .setCustomId(`modal_inactividad:${sistema}`)
+    .setTitle(`📋 Justificación de Inactividad — ${sistema}`);
 
   modal.addComponents(
     new ActionRowBuilder().addComponents(
@@ -85,7 +98,12 @@ async function handleInactividadButton(interaction) {
 
 async function handleInactividadModal(interaction, client) {
   if (!interaction.isModalSubmit()) return;
-  if (interaction.customId !== "modal_inactividad") return;
+  if (!interaction.customId.startsWith("modal_inactividad")) return;
+
+  const sistema = interaction.customId.split(":")[1] || "ROLAS";
+  const actRolId    = sistema === "RUSH" ? RUSH_ACTIVITY_ROLE_ID : ACTIVITY_ROLE_ID;
+  const inactRolId  = sistema === "RUSH" ? RUSH_ROL_INACTIVO_ID  : ROL_INACTIVO_ID;
+  const canalInact  = sistema === "RUSH" ? RUSH_CANAL_CMD_INACTIVO : CANAL_CMD_INACTIVO;
 
   const razon = interaction.fields.getTextInputValue("razon");
   const desde = interaction.fields.getTextInputValue("desde").trim();
@@ -140,30 +158,45 @@ async function handleInactividadModal(interaction, client) {
   try {
     const guild  = await client.guilds.fetch(GUILD_ID);
     const member = await guild.members.fetch(interaction.user.id);
-    await member.roles.remove(ACTIVITY_ROLE_ID).catch(() => {});
-    await member.roles.add(ROL_INACTIVO_ID).catch(() => {});
+    await member.roles.remove(actRolId).catch(() => {});
+    await member.roles.add(inactRolId).catch(() => {});
 
     msHasta = hastaDate.getTime() - Date.now();
+    const MAX_TIMEOUT = 24 * 60 * 60 * 1000; // 24 horas máximo por setTimeout
+
     if (msHasta > 0) {
-      setTimeout(async () => {
-        try {
-          const guildFresh  = await client.guilds.fetch(GUILD_ID);
-          const memberFresh = await guildFresh.members.fetch(interaction.user.id);
-          await memberFresh.roles.add(ACTIVITY_ROLE_ID).catch(() => {});
-          await memberFresh.roles.remove(ROL_INACTIVO_ID).catch(() => {});
-          excusasActivas.delete(interaction.user.id);
-          console.log(`[INACTIVIDAD] Roles restaurados automáticamente: ${interaction.user.tag}`);
-        } catch(e) { console.error("[INACTIVIDAD] Error restaurando roles:", e.message); }
-      }, msHasta);
+      // Si el tiempo es mayor al límite de 32-bit, usamos timeouts encadenados
+      const programarRestauracion = (msRestante, userId, actR, inactR, sis) => {
+        const espera = Math.min(msRestante, MAX_TIMEOUT);
+        setTimeout(async () => {
+          const restante = hastaDate.getTime() - Date.now();
+          if (restante > 0) {
+            // Todavía no llegó la fecha, re-programar
+            programarRestauracion(restante, userId, actR, inactR, sis);
+          } else {
+            // Ya llegó la fecha, restaurar roles
+            try {
+              const guildFresh  = await client.guilds.fetch(GUILD_ID);
+              const memberFresh = await guildFresh.members.fetch(userId);
+              await memberFresh.roles.add(actR).catch(() => {});
+              await memberFresh.roles.remove(inactR).catch(() => {});
+              excusasActivas.delete(userId);
+              console.log(`[INACTIVIDAD-${sis}] Roles restaurados automáticamente: ${memberFresh.user.tag}`);
+            } catch(e) { console.error(`[INACTIVIDAD-${sis}] Error restaurando roles:`, e.message); }
+          }
+        }, espera);
+      };
+      programarRestauracion(msHasta, interaction.user.id, actRolId, inactRolId, sistema);
     }
-  } catch(e) { console.error("[INACTIVIDAD] Error manejando roles:", e.message); }
+  } catch(e) { console.error(`[INACTIVIDAD-${sistema}] Error manejando roles:`, e.message); }
 
   // Embed en canal de inactividad CON botón de regreso
   try {
-    const canal = await client.channels.fetch(CANAL_CMD_INACTIVO);
+    const canal = await client.channels.fetch(canalInact);
     if (canal) {
       const embed = new EmbedBuilder()
-        .setColor(0x39ff3c).setTitle("📋 Justificación de Inactividad")
+        .setColor(sistema === "RUSH" ? 0xff6b00 : 0x39ff3c)
+        .setTitle(`📋 Justificación de Inactividad — ${sistema}`)
         .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
         .setImage(BANNER_INACTIVIDAD)
         .addFields(
@@ -173,11 +206,11 @@ async function handleInactividadModal(interaction, client) {
           { name: "📝 Razón",   value: razon,                  inline: false },
         )
         .setTimestamp()
-        .setFooter({ text: `ID: ${interaction.user.id}` });
+        .setFooter({ text: `ID: ${interaction.user.id} • ${sistema}` });
 
       const rowRegreso = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-          .setCustomId(`inactivo_regrese:${interaction.user.id}`)
+          .setCustomId(`inactivo_regrese:${interaction.user.id}:${sistema}`)
           .setLabel("✅ Ya volví")
           .setStyle(ButtonStyle.Success)
           .setEmoji("🏠")
@@ -185,10 +218,10 @@ async function handleInactividadModal(interaction, client) {
 
       await canal.send({ embeds: [embed], components: [rowRegreso] });
     }
-  } catch(e) { console.error("[INACTIVIDAD] Error:", e.message); }
+  } catch(e) { console.error(`[INACTIVIDAD-${sistema}] Error:`, e.message); }
 
   await interaction.reply({
-    content: `✅ Inactividad registrada del **${desde}** al **${hasta}**.\nSe te quitó el rol de actividad. Cuando regreses, presiona el botón **"✅ Ya volví"** en el canal para recuperar tu rol. Si no lo presionas, el sistema lo restaura automáticamente el **${hasta}**. 🙏`,
+    content: `✅ Inactividad **${sistema}** registrada del **${desde}** al **${hasta}**.\nSe te quitó el rol de actividad. Cuando regreses, presiona el botón **"✅ Ya volví"** en el canal para recuperar tu rol. Si no lo presionas, el sistema lo restaura automáticamente el **${hasta}**. 🙏`,
     ephemeral: true
   });
 }
@@ -198,15 +231,20 @@ async function handleRegresesButton(interaction, client) {
   if (!interaction.isButton()) return;
   if (!interaction.customId.startsWith("inactivo_regrese:")) return;
 
-  const ownerId = interaction.customId.split(":")[1];
+  const partes  = interaction.customId.split(":");
+  const ownerId = partes[1];
+  const sistema = partes[2] || "ROLAS";
+  const actRolId   = sistema === "RUSH" ? RUSH_ACTIVITY_ROLE_ID : ACTIVITY_ROLE_ID;
+  const inactRolId = sistema === "RUSH" ? RUSH_ROL_INACTIVO_ID  : ROL_INACTIVO_ID;
+
   if (interaction.user.id !== ownerId)
     return interaction.reply({ content: "❌ Este botón es solo para quien registró la inactividad.", ephemeral: true });
 
   try {
     const guild  = await client.guilds.fetch(GUILD_ID);
     const member = await guild.members.fetch(interaction.user.id);
-    await member.roles.add(ACTIVITY_ROLE_ID).catch(() => {});
-    await member.roles.remove(ROL_INACTIVO_ID).catch(() => {});
+    await member.roles.add(actRolId).catch(() => {});
+    await member.roles.remove(inactRolId).catch(() => {});
     excusasActivas.delete(interaction.user.id);
 
     // Deshabilitar el botón

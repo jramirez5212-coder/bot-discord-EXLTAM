@@ -2,16 +2,29 @@ const { EmbedBuilder } = require("discord.js");
 const {
   CANAL_CMD_HORAS, CANAL_CMD_INACTIVO,
   CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, CANAL_CMD_ADMIN,
+  RUSH_CANAL_CMD_HORAS, RUSH_CANAL_CMD_INACTIVO,
 } = require("../config");
 
 // Texto de comandos por canal
 const COMANDOS_POR_CANAL = {
   [CANAL_CMD_HORAS]: {
-    titulo: "📊 Comandos de Horas",
+    titulo: "📊 Comandos de Horas — ROLAS",
+    texto: "`!horas` → Ver tus horas acumuladas\n`!top` → Ver el ranking semanal de actividad",
+  },
+  [RUSH_CANAL_CMD_HORAS]: {
+    titulo: "📊 Comandos de Horas — RUSH",
     texto: "`!horas` → Ver tus horas acumuladas\n`!top` → Ver el ranking semanal de actividad",
   },
   [CANAL_CMD_INACTIVO]: {
-    titulo: "📋 Comando de Inactividad",
+    titulo: "📋 Comando de Inactividad — ROLAS",
+    texto: "`!inactivo` → Justificar tu inactividad (abre formulario)\n\n" +
+           "⚠️ **MUY IMPORTANTE:** las fechas deben ir en formato **AÑO-MES-DÍA** (`YYYY-MM-DD`).\n" +
+           "✅ Ejemplo correcto: `2026-06-20`\n" +
+           "❌ Incorrecto: `20-06-2026`, `20/06/26`, `junio 20`\n\n" +
+           "Si pones el formato mal, el bot puede confundirse y calcular mal tus fechas de inactividad.",
+  },
+  [RUSH_CANAL_CMD_INACTIVO]: {
+    titulo: "📋 Comando de Inactividad — RUSH",
     texto: "`!inactivo` → Justificar tu inactividad (abre formulario)\n\n" +
            "⚠️ **MUY IMPORTANTE:** las fechas deben ir en formato **AÑO-MES-DÍA** (`YYYY-MM-DD`).\n" +
            "✅ Ejemplo correcto: `2026-06-20`\n" +

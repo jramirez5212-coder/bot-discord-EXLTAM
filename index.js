@@ -14,6 +14,7 @@ const https = require("https");
 
 const voiceEvent                   = require("./src/events/voiceStateUpdate");
 const { handleHoras }              = require("./src/commands/horas");
+const { handleHorasRush }          = require("./src/commands/horasRush");
 const { handleAnuncios }           = require("./src/commands/anuncios");
 const { handleInactividad,
         handleInactividadButton,
@@ -29,7 +30,8 @@ const { handleNuevo,
         handleNuevoButton,
         handleTutorialButton,
         handleNuevoFotoSS,
-        handleSSResultButton }      = require("./src/commands/nuevo");
+        handleSSResultButton,
+        handleBandaButton }         = require("./src/commands/nuevo");
 const { handleTandas }             = require("./src/commands/tandas");
 const { handleInactividadDecision } = require("./src/commands/inactividadDecision");
 const { handleMigrarRoles }        = require("./src/commands/migrarRoles");
@@ -38,6 +40,7 @@ const { handleTriunfos, ensurePinnedTriunfos, CANAL_TRIUNFOS_ID, handleTopTriunf
 const { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMetio, handleArmarioAlertaButton } = require("./src/commands/armario");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
+const { startInactividadRushTask } = require("./src/tasks/inactividadRushTask");
 const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require("./src/tasks/calendarioTask");
 const { initPanelEventos, handlePanelButton, handleEmbedCreator, handleAnuncioCmd, handleRecordatorio, handleEncuesta } = require("./src/commands/panelEventos");
 
@@ -76,7 +79,7 @@ const configViejo = {
   bannerUrl: config.bannerUrl,
 };
 
-const questions = ["Nombre:","Residencia/País?:","Edad (**mínimo 15**):","5 Clips o 1HG:","Foto de las horas de FiveM:","Foto KD (**mínimo 1.8**):","Link Steam Público:","Tiempo Disponible?:"];
+const questions = ["Nombre:","Residencia/País?:","Edad (**mínimo 15**)","5 Clips o 1HG:","Foto de las horas de FiveM:","Foto KD (**mínimo 1.8**)","Link Steam Público:","Tiempo Disponible?:","¿Te postulas para ROLAS o RUSH? (escribe exactamente ROLAS o RUSH)"];
 
 const ticketTypes = {
   reportes: { label:"Reportes", emoji:"⛔",  categoryId:"1516259251750834226", roleId:"1516258948871753902", description:"⚠️ **Cuéntanos en qué te podemos ayudar.**\n\n~ Usuario reportado:\n~ Motivo del reporte:\n~ Pruebas / clips:\n~ Explicación completa de lo sucedido:" },
@@ -304,6 +307,7 @@ client.once("clientReady", async () => {
   recoverTorneoRoles(client);
   startActividadTask(client);
   startInactividadTask(client);
+  startInactividadRushTask(client);
   startCalendarioTask(client);
   await initPanelEventos(client, EVENTOS).catch(e => console.log("⚠️ Panel eventos:", e.message));
   // Mensaje fijado de triunfos al iniciar
@@ -358,10 +362,17 @@ client.on("guildMemberAdd", async member => {
 client.on("voiceStateUpdate",(o,n)=>voiceEvent.execute(o,n,client));
 
 client.on("messageCreate", async message => {
-  if (message.author.bot) return;
+  if (message.guild) {
+    // Armario primero — Rolas Academy es un bot y necesita procesarse
+    await handleArmarioLogs(message);
+    await handleComandosFijados(message);
+  }
+
+  if (message.author.bot) return; // ignorar otros bots para el resto de comandos
 
   if (message.guild) {
     await handleHoras(message, client);
+    await handleHorasRush(message, client);
     await handleAnuncios(message);
     await handleInactividad(message);
     await handleTorneo(message);
@@ -377,11 +388,9 @@ client.on("messageCreate", async message => {
     await handleTriunfos(message);
     await handleTopTriunfos(message);
     await handleMisTriunfos(message);
-    await handleArmarioLogs(message);
     await handleArmarioCommand(message);
     await handleTopArmario(message);
     await handleTopMetio(message);
-    await handleComandosFijados(message);
 
     // ── Comandos de control del anti-farmeo ──────────────────────────────────
     const cmdAfk = message.content.trim().toLowerCase().split(/\s+/);
@@ -474,6 +483,7 @@ client.on("interactionCreate", async interaction => {
     await handleNuevoButton(interaction, client);
     await handleTutorialButton(interaction, client);
     await handleSSResultButton(interaction, client);
+    await handleBandaButton(interaction, client);
     await handleChiteadoButton(interaction, client);
     await handleInactividadDecision(interaction, client);
     await handleRegresesButton(interaction, client);
@@ -556,10 +566,25 @@ client.on("interactionCreate", async interaction => {
       const approved=interaction.customId.startsWith("aprobar_");const uid=interaction.customId.split("_")[1];
       const user=await client.users.fetch(uid).catch(()=>null);if(!user)return interaction.reply({content:"No encontré al usuario.",ephemeral:true});
       if(approved){
-        await user.send({content:`✅ Tu **POSTULACIÓN** fue aprobada por ${interaction.user}.\n\nSe creó un ticket para continuar. La segunda etapa será por llamada.`}).catch(()=>null);
+        // Detectar si se postuló para ROLAS o RUSH según la última respuesta
+        const apps = loadApps();
+        const app  = apps[uid];
+        const ultimaRespuesta = app?.answers?.[app.answers.length - 1]?.toLowerCase() || "";
+        const esRush = ultimaRespuesta.includes("rush");
+        const rolActividad = esRush ? "1518491812593926274" : "1516258966756266054";
+        const banda = esRush ? "RUSH" : "ROLAS";
+
+        // Asignar rol de actividad correcto
+        try {
+          const guild  = await client.guilds.fetch("1188377448346288158");
+          const member = await guild.members.fetch(uid).catch(()=>null);
+          if (member) await member.roles.add(rolActividad).catch(()=>null);
+        } catch(e) { console.error("[POSTULACION] Error asignando rol:", e.message); }
+
+        await user.send({content:`✅ Tu **POSTULACIÓN** fue aprobada por ${interaction.user}.\n\nFuiste asignado a **${banda}**. Se creó un ticket para continuar. La segunda etapa será por llamada.`}).catch(()=>null);
         const t=await createResultTicket(uid,"aprobada",interaction.user);
         await interaction.message.edit({components:[]}).catch(()=>null);
-        return interaction.reply({content:`✅ Aprobada. Ticket: ${t}`,ephemeral:true});
+        return interaction.reply({content:`✅ Aprobada (${banda}). Ticket: ${t}`,ephemeral:true});
       }
       await sendRejectAppealDM(user,interaction.user);
       const apps=loadApps();apps[uid]=apps[uid]||{};apps[uid].lastRejectStaffId=interaction.user.id;apps[uid].status="rechazada";apps[uid].reviewedAt=Date.now();saveApps(apps);

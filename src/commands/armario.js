@@ -37,10 +37,11 @@ function fechaHoy() {
 // "@usuario saco N money de banda_exlatam (stock)"
 // "@usuario metio N money en banda_exlatam (stock)"
 // Parser compatible con ambos formatos:
-// "@username saco N ITEM de banda_exlatam (stock)"  ← formato Rolas Academy
+// "@usuario saco N ITEM de banda_exlatam (stock)"  ← formato Rolas Academy texto plano
 // "<@123456> saco N ITEM de banda_exlatam (stock)"  ← menciones Discord
+// Items pueden ser: WEAPON_SMG, corredera, metal, money, medikit, energizante_vip, etc.
 function parsearLinea(linea) {
-  // Intenta primero con mención Discord
+  // Intenta primero con mención Discord <@ID>
   const regexMencion = /^<@!?(\d+)>\s+(saco|metio)\s+(\d+)\s+(\S+)\s+(?:de|en)\s+\S+\s+\((\d+)\)/i;
   const matchMencion = linea.match(regexMencion);
   if (matchMencion) {
@@ -55,12 +56,13 @@ function parsearLinea(linea) {
   }
 
   // Formato texto plano: @username saco N ITEM de/en banda_exlatam (stock)
+  // El item puede ser cualquier palabra: WEAPON_SMG, corredera, metal, money, etc.
   const regexPlano = /^@(\S+)\s+(saco|metio)\s+(\d+)\s+(\S+)\s+(?:de|en)\s+\S+\s+\((\d+)\)/i;
   const matchPlano = linea.match(regexPlano);
   if (matchPlano) {
     return {
       userId:   null,
-      username: matchPlano[1].toLowerCase(), // ej: "ploff", "sleezy.gg"
+      username: matchPlano[1].toLowerCase(),
       accion:   matchPlano[2].toLowerCase(),
       cantidad: parseInt(matchPlano[3]),
       item:     matchPlano[4].toUpperCase(),
