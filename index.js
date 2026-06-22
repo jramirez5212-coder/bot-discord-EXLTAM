@@ -308,7 +308,8 @@ client.once("clientReady", async () => {
   voiceEvent.recoverSessions(client);
   recoverTorneoRoles(client);
   startActividadTask(client);
-  startActividadRushTask(client);
+  // RUSH arranca 15 segundos después para evitar rate limit al hacer members.fetch() simultáneo
+  setTimeout(() => startActividadRushTask(client), 15000);
   startInactividadTask(client);
   startInactividadRushTask(client);
   startCalendarioTask(client);

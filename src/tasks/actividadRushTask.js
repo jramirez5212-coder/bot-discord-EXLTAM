@@ -27,6 +27,13 @@ function getActiveSessions() {
 
 async function getGuild(client) {
   if (!guildCacheRush) {
+    // Intentar reutilizar el caché de ROLAS para no hacer doble fetch
+    const { getGuildCache } = require("./actividadTask");
+    const cacheRolas = getGuildCache();
+    if (cacheRolas) {
+      guildCacheRush = cacheRolas;
+      return guildCacheRush;
+    }
     guildCacheRush = await client.guilds.fetch(GUILD_ID);
     await guildCacheRush.members.fetch();
   }
@@ -69,7 +76,8 @@ async function updateActividadEmbed(client) {
     for (const [id, member] of miembros) {
       const userData = getUser(data, id);
       const guardado = userData.days?.[hoy]?.totalMs || 0;
-      const sesionTs = activeSessions.get(id) || userData.sessionStart;
+      const sesion   = activeSessions.get(id);
+      const sesionTs = sesion && sesion.isRush ? sesion.startMs : (userData.sessionStart || null);
       const enVivo   = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       lista.push({ member, msTotal: guardado + enVivo, enVivo: enVivo > 0 });
     }
@@ -124,7 +132,8 @@ async function updateTopEmbed(client) {
     const ranking = [];
     for (const [id, member] of miembros) {
       const ud     = getUser(data, id);
-      const sesionTs = activeSessions.get(id) || ud.sessionStart;
+      const sesion = activeSessions.get(id);
+      const sesionTs = sesion && sesion.isRush ? sesion.startMs : (ud.sessionStart || null);
       const enVivo = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       ranking.push({
         member,

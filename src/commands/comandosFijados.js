@@ -25,15 +25,15 @@ const COMANDOS_POR_CANAL = {
   },
   [RUSH_CANAL_CMD_INACTIVO]: {
     titulo: "📋 Comando de Inactividad — RUSH",
-    texto: "`!inactivo` → Justificar tu inactividad (abre formulario)\n\n" +
+    texto: "`!inactivorush` → Justificar tu inactividad (abre formulario)\n\n" +
            "⚠️ **MUY IMPORTANTE:** las fechas deben ir en formato **AÑO-MES-DÍA** (`YYYY-MM-DD`).\n" +
            "✅ Ejemplo correcto: `2026-06-20`\n" +
            "❌ Incorrecto: `20-06-2026`, `20/06/26`, `junio 20`\n\n" +
            "Si pones el formato mal, el bot puede confundirse y calcular mal tus fechas de inactividad.",
   },
   [CANAL_CMD_ANUNCIOS]: {
-    titulo: "📢 Comandos de Anuncios",
-    texto: "`!activense` `!tormenta` `!battle` `!drop` → Notificar eventos a la banda\n`!tandastormentas` → Inicia tanda de 8 avisos cada 5 min\n`!paratanda` → Detiene la tanda activa",
+    titulo: "📢 Comandos de Anuncios — ROLAS",
+    texto: "`!activense` `!tormenta` `!battle` `!drop` → Notificar eventos a la banda ROLAS\n`!tandastormentas` → Inicia tanda de 8 avisos (ROLAS)\n`!paratanda` → Detiene la tanda\n\n**RUSH:**\n`!activenserush` `!tormentarush` `!battlerush` `!droprush`\n`!tandastormentasrush` → Inicia tanda RUSH\n`!paratandarush` → Detiene la tanda RUSH",
   },
   [CANAL_CMD_TORNEO]: {
     titulo: "🏆 Comandos de Torneo",

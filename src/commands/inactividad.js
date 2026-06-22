@@ -21,15 +21,24 @@ function detectarSistema(member) {
 
 async function handleInactividad(message) {
   if (message.author.bot) return;
-  if (message.content.trim().toLowerCase() !== "!inactivo") return;
+  const cmd = message.content.trim().toLowerCase();
+  if (cmd !== "!inactivo" && cmd !== "!inactivorush") return;
 
-  const sistema = detectarSistema(message.member);
-  if (!sistema)
-    return message.reply("❌ No tienes un rol de actividad (ROLAS o RUSH) para usar este comando.");
+  // Si usó !inactivorush, forzar sistema RUSH
+  // Si usó !inactivo, detectar automáticamente
+  let sistema;
+  if (cmd === "!inactivorush") {
+    sistema = "RUSH";
+  } else {
+    sistema = detectarSistema(message.member);
+    if (!sistema)
+      return message.reply("❌ No tienes un rol de actividad (ROLAS o RUSH) para usar este comando.");
+  }
 
   const canalValido = sistema === "ROLAS" ? CANAL_CMD_INACTIVO : RUSH_CANAL_CMD_INACTIVO;
   if (message.channel.id !== canalValido) {
-    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${canalValido}>`);
+    const cmdCorrecto = sistema === "RUSH" ? "!inactivorush" : "!inactivo";
+    const aviso = await message.reply(`❌ El comando \`${cmdCorrecto}\` solo se puede usar en <#${canalValido}>`);
     setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
     return;
   }

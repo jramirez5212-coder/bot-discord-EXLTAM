@@ -17,12 +17,8 @@ async function handleHoras(message, client) {
   const comando = args[0].toLowerCase();
   if (!["!horas","!top"].includes(comando)) return;
 
-  // Solo en canal permitido
-  if (message.channel.id !== CANAL_CMD_HORAS) {
-    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_HORAS}>`);
-    setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
-    return;
-  }
+  // Solo en canal ROLAS — si es otro canal, no hacer nada (puede ser canal RUSH)
+  if (message.channel.id !== CANAL_CMD_HORAS) return;
 
   const data           = loadData();
   const activeSessions = getActiveSessions();
@@ -39,7 +35,7 @@ async function handleHoras(message, client) {
     const hoy      = todayKey();
 
     // Calcular estado del usuario
-    const sesionTs   = activeSessions.get(target.id) || userData.sessionStart;
+    const _ses = activeSessions.get(target.id); const sesionTs = _ses && !sesion.isRush ? _ses.startMs : (userData.sessionStart || null);
     const enVivo     = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
     const msHoy      = (userData.days?.[hoy]?.totalMs || 0) + enVivo;
     const estaEnVoz  = enVivo > 0;
@@ -91,7 +87,7 @@ async function handleHoras(message, client) {
     const ranking = [];
     for (const [id, member] of miembros) {
       const ud     = getUser(data, id);
-      const sesionTs = activeSessions.get(id) || ud.sessionStart;
+      const _ses2 = activeSessions.get(id); const sesionTs = _ses2 && !sesion.isRush ? _ses2.startMs : (ud.sessionStart || null);
       const enVivo = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       ranking.push({ member, weekMs: (ud.weekMs||0)+enVivo, totalMs: ud.totalMs||0, enVivo: enVivo>0 });
     }

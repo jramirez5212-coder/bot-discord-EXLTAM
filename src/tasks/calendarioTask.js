@@ -264,6 +264,11 @@ async function handleInscripcionButton(interaction) {
   const isSalir     = interaction.customId.startsWith("salir_torneo:");
   if (!isInscribir && !isSalir) return;
 
+  // Verificar que el usuario tiene rol ROLAS
+  const { ACTIVITY_ROLE_ID } = require("../config");
+  if (!interaction.member.roles.cache.has(ACTIVITY_ROLE_ID))
+    return interaction.reply({ content: "❌ Este torneo es solo para **ROLAS**. No tienes el rol de actividad ROLAS.", ephemeral: true });
+
   const key  = interaction.customId.split(":").slice(1).join(":");
   const data = inscripcionesActivas.get(key);
 
@@ -275,7 +280,7 @@ async function handleInscripcionButton(interaction) {
     if (data.maxJugadores && data.inscritos.size >= data.maxJugadores)
       return interaction.reply({ content: "❌ El torneo ya está lleno.", ephemeral: true });
     data.inscritos.add(interaction.user.id);
-    return interaction.reply({ content: `✅ Te inscribiste en el torneo. ¡Prepárate! (${data.inscritos.size}/${data.maxJugadores ?? "∞"})`, ephemeral: true });
+    return interaction.reply({ content: `✅ Te inscribiste en el torneo ROLAS. ¡Prepárate! (${data.inscritos.size}/${data.maxJugadores ?? "∞"})`, ephemeral: true });
   }
 
   if (!data.inscritos.has(interaction.user.id))

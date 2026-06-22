@@ -28,6 +28,10 @@ async function getGuild(client) {
   return guildCache;
 }
 
+// Exportar para que actividadRushTask pueda reusar el mismo caché
+function setGuildCache(g) { guildCache = g; }
+function getGuildCache()  { return guildCache; }
+
 function startActividadTask(client) {
   client.on("updateActividadEmbed", () => updateEmbeds(client));
   setInterval(() => updateEmbeds(client), 30 * 1000);
@@ -64,7 +68,9 @@ async function updateActividadEmbed(client) {
     for (const [id, member] of miembros) {
       const userData = getUser(data, id);
       const guardado = userData.days?.[hoy]?.totalMs || 0;
-      const sesionTs = activeSessions.get(id) || userData.sessionStart;
+      const sesion   = activeSessions.get(id);
+      // activeSessions ahora guarda { startMs, isRush } — solo contar si es ROLAS
+      const sesionTs = sesion && !sesion.isRush ? sesion.startMs : (userData.sessionStart || null);
       const enVivo   = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       lista.push({ member, msTotal: guardado + enVivo, enVivo: enVivo > 0 });
     }
@@ -119,7 +125,8 @@ async function updateTopEmbed(client) {
     const ranking = [];
     for (const [id, member] of miembros) {
       const ud     = getUser(data, id);
-      const sesionTs = activeSessions.get(id) || ud.sessionStart;
+      const sesion = activeSessions.get(id);
+      const sesionTs = sesion && !sesion.isRush ? sesion.startMs : (ud.sessionStart || null);
       const enVivo = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       ranking.push({
         member,
@@ -261,4 +268,4 @@ async function checkTopSemanal(client) {
   }
 }
 
-module.exports = { startActividadTask, updateActividadEmbed };
+module.exports = { startActividadTask, updateActividadEmbed, getGuildCache, setGuildCache };

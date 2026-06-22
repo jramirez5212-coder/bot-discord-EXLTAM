@@ -260,6 +260,11 @@ async function handleInscripcionRushButton(interaction) {
   const isSalir     = interaction.customId.startsWith("salir_torneo_rush:");
   if (!isInscribir && !isSalir) return;
 
+  // Verificar que el usuario tiene rol RUSH
+  const { RUSH_ACTIVITY_ROLE_ID } = require("../config");
+  if (!interaction.member.roles.cache.has(RUSH_ACTIVITY_ROLE_ID))
+    return interaction.reply({ content: "❌ Este torneo es solo para **RUSH**. No tienes el rol de actividad RUSH.", ephemeral: true });
+
   const key  = interaction.customId.split(":").slice(1).join(":");
   const data = inscripcionesActivas.get(key);
 
@@ -271,7 +276,7 @@ async function handleInscripcionRushButton(interaction) {
     if (data.maxJugadores && data.inscritos.size >= data.maxJugadores)
       return interaction.reply({ content: "❌ El torneo ya está lleno.", ephemeral: true });
     data.inscritos.add(interaction.user.id);
-    return interaction.reply({ content: `✅ Te inscribiste en el torneo. ¡Prepárate! (${data.inscritos.size}/${data.maxJugadores ?? "∞"})`, ephemeral: true });
+    return interaction.reply({ content: `✅ Te inscribiste en el torneo RUSH. ¡Prepárate! (${data.inscritos.size}/${data.maxJugadores ?? "∞"})`, ephemeral: true });
   }
 
   if (!data.inscritos.has(interaction.user.id))
