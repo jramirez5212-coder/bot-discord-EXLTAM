@@ -58,7 +58,8 @@ module.exports = {
     const sistema = detectarSistema(member);
     if (!sistema) return; // No tiene rol de actividad ni ROLAS ni RUSH
 
-    const isRush  = sistema === "RUSH";
+    // RUSH no trackea horas de voz — solo ROLAS
+    if (sistema === "RUSH") return;
     const userId  = member.id;
     const entró   = !oldState.channelId && newState.channelId;
     const salió   = oldState.channelId  && !newState.channelId;

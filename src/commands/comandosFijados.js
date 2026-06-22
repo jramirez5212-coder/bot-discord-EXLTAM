@@ -11,10 +11,8 @@ const COMANDOS_POR_CANAL = {
     titulo: "📊 Comandos de Horas — ROLAS",
     texto: "`!horas` → Ver tus horas acumuladas\n`!top` → Ver el ranking semanal de actividad",
   },
-  [RUSH_CANAL_CMD_HORAS]: {
-    titulo: "📊 Comandos de Horas — RUSH",
-    texto: "`!horas` → Ver tus horas acumuladas\n`!top` → Ver el ranking semanal de actividad",
-  },
+  // Canal RUSH de horas desactivado — RUSH no tiene sistema de horas
+  // [RUSH_CANAL_CMD_HORAS]: { ... }
   [CANAL_CMD_INACTIVO]: {
     titulo: "📋 Comando de Inactividad — ROLAS",
     texto: "`!inactivo` → Justificar tu inactividad (abre formulario)\n\n" +

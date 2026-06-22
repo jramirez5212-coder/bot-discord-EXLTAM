@@ -40,6 +40,7 @@ const { handleTriunfos, ensurePinnedTriunfos, CANAL_TRIUNFOS_ID, handleTopTriunf
 const { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMetio, handleArmarioAlertaButton } = require("./src/commands/armario");
 const { startActividadTask }       = require("./src/tasks/actividadTask");
 const { startActividadRushTask }   = require("./src/tasks/actividadRushTask");
+const { startPresenciaRushTask }   = require("./src/tasks/presenciaRushTask");
 const { startInactividadTask }     = require("./src/tasks/inactividadTask");
 const { startInactividadRushTask } = require("./src/tasks/inactividadRushTask");
 const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require("./src/tasks/calendarioTask");
@@ -310,8 +311,10 @@ client.once("clientReady", async () => {
   voiceEvent.recoverSessions(client);
   recoverTorneoRoles(client);
   startActividadTask(client);
-  // RUSH arranca 15 segundos después para evitar rate limit al hacer members.fetch() simultáneo
-  setTimeout(() => startActividadRushTask(client), 15000);
+  // RUSH solo tiene sistema de inactividad, no de horas/actividad
+  // startActividadRushTask desactivado intencionalmente
+  setTimeout(() => startInactividadRushTask(client), 15000);
+  startPresenciaRushTask(client);
   startInactividadTask(client);
   startInactividadRushTask(client);
   startCalendarioTask(client);
