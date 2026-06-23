@@ -44,31 +44,31 @@ async function checkMedianoche(client) {
 
     for (const [id, member] of miembros) {
       const userData = getUser(data, id);
-      const msHoy    = userData.days?.[fechaHoy]?.totalMs || 0;
 
       if (!userData.lastSeen && !userData.botFirstSeen) {
         userData.botFirstSeen = Date.now();
         continue;
       }
 
-      const referencia = userData.botFirstSeen || userData.lastSeen;
+      const referencia = userData.lastSeen || userData.botFirstSeen;
       const diasSin    = Math.floor((ahora_ms - referencia) / (24 * 60 * 60 * 1000));
-      const cumplioHoy = msHoy > 0;
+
+      // Para RUSH: cumplió si estuvo en voz HOY (lastSeen es de hoy)
+      const lastSeenDate = userData.lastSeen
+        ? new Date(userData.lastSeen).toLocaleDateString("en-CA", { timeZone: "America/Bogota" })
+        : null;
+      const cumplioHoy = lastSeenDate === fechaHoy;
       const excusado   = global.isExcused && global.isExcused(id);
 
-      // Log diario en #logs
+      // Log diario simplificado para RUSH (sin horas)
       if (canalLogs) {
         const logEmbed = new EmbedBuilder()
           .setColor(cumplioHoy ? 0x39FF14 : 0xe74c3c)
           .setThumbnail(member.user.displayAvatarURL())
-          .setTitle(`${cumplioHoy ? "✅" : "❌"} ${member.user.username}`)
+          .setTitle(`${cumplioHoy ? "✅" : "❌"} ${member.user.username} — RUSH`)
           .addFields(
-            { name: "📅 Fecha",           value: fechaHoy,                         inline: true },
-            { name: "⏰ Horas hoy",       value: msToHours(msHoy),                 inline: true },
-            { name: "📆 Esta semana",     value: msToHours(userData.weekMs),       inline: true },
-            { name: "🏆 Total",           value: msToHours(userData.totalMs),      inline: true },
-            { name: "📉 Días sin entrar", value: `${diasSin}d`,                    inline: true },
-            { name: "🔥 Racha",           value: `${userData.diasSeguidos || 0}d`, inline: true },
+            { name: "📅 Fecha",           value: fechaHoy,      inline: true },
+            { name: "📉 Días sin entrar", value: `${diasSin}d`, inline: true },
           )
           .setTimestamp();
         try { await canalLogs.send({ embeds: [logEmbed] }); } catch {}
@@ -136,7 +136,7 @@ async function checkMedianoche(client) {
               { name: "📉 Días inactivo", value: `${diasSin}d`,  inline: true },
               { name: "📅 Fecha",         value: fechaHoy,       inline: true },
             )
-            .setFooter({ text: `ID: ${member.id}` })
+            .setFooter({ text: `RUSH • ID: ${member.id}` })
             .setTimestamp();
 
           const row = new ActionRowBuilder().addComponents(
@@ -177,7 +177,7 @@ async function enviarSancion(member, canal, numero, diasSin, mensaje, color, emo
   try {
     const embed = new EmbedBuilder()
       .setColor(color)
-      .setTitle(`${emoji} Advertencia ${numero}/3 — ${member.user.username}`)
+      .setTitle(`${emoji} Advertencia ${numero}/3 — RUSH — ${member.user.username}`)
       .setThumbnail(member.user.displayAvatarURL())
       .setDescription(`${member}\n\n${mensaje}`)
       .addFields(
@@ -185,7 +185,7 @@ async function enviarSancion(member, canal, numero, diasSin, mensaje, color, emo
         { name: "📉 Días inactivo",  value: `${diasSin}d`,   inline: true },
       )
       .setTimestamp()
-      .setFooter({ text: `ID: ${member.id}` });
+      .setFooter({ text: `RUSH • ID: ${member.id}` });
     await canal.send({ embeds: [embed] });
   } catch (err) { console.error("[SANCION] Error:", err); }
 }

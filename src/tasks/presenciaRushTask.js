@@ -23,18 +23,27 @@ async function updatePresenciaRush(client) {
     const enVoz    = [];
     const fuera    = [];
 
+    const { loadDataRush, saveDataRush, getUser } = require("../utils/dataManager");
+    const data = loadDataRush();
+    let changed = false;
+
     for (const [, member] of miembros) {
       const enCanalPermitido = member.voice.channelId &&
         VOICE_CHANNELS_ALLOWED.includes(member.voice.channelId);
       if (enCanalPermitido) {
+        // Actualizar lastSeen para el sistema de inactividad
+        const ud = getUser(data, member.id);
+        ud.lastSeen = Date.now();
+        changed = true;
         enVoz.push(member);
       } else {
         fuera.push(member);
       }
     }
+    if (changed) saveDataRush(data);
 
-    const listaVoz  = enVoz.length  ? enVoz.map(m  => `• ${m}`).join("\n") : "_Nadie en canal de voz_";
-    const listaFuera = fuera.length ? fuera.map(m => `• ${m}`).join("\n")  : "_Todos están activos_";
+    const listaVoz   = enVoz.length  ? enVoz.map((m, i)  => `${i+1}. ${m}`).join("\n") : "_Nadie en canal de voz_";
+    const listaFuera = fuera.length  ? fuera.map((m, i) => `${enVoz.length+i+1}. ${m}`).join("\n") : "_Todos están activos_";
 
     const embed = new EmbedBuilder()
       .setColor(0x3498db)

@@ -174,7 +174,7 @@ async function enviarSancion(member, canal, numero, diasSin, mensaje, color, emo
   try {
     const embed = new EmbedBuilder()
       .setColor(color)
-      .setTitle(`${emoji} Advertencia ${numero}/3 — ${member.user.username}`)
+      .setTitle(`${emoji} Advertencia ${numero}/3 — ROLAS — ${member.user.username}`)
       .setThumbnail(member.user.displayAvatarURL())
       .setDescription(`${member}\n\n${mensaje}`)
       .addFields(
@@ -182,7 +182,7 @@ async function enviarSancion(member, canal, numero, diasSin, mensaje, color, emo
         { name: "📉 Días inactivo",  value: `${diasSin}d`,   inline: true },
       )
       .setTimestamp()
-      .setFooter({ text: `ID: ${member.id}` });
+      .setFooter({ text: `ROLAS • ID: ${member.id}` });
     await canal.send({ embeds: [embed] });
   } catch (err) { console.error("[SANCION] Error:", err); }
 }

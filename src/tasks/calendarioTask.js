@@ -55,127 +55,24 @@ function eventosSiguientes(n = 3) {
   return [...ord.filter(e => horaAMinutos(e.hora) > ahora), ...ord.filter(e => horaAMinutos(e.hora) <= ahora)].slice(0, n);
 }
 
-// ── TORNEOS AUTOMÁTICOS: mismo sistema que !torneo manual ────────────────────
+// ── TORNEOS AUTOMÁTICOS: solo anuncio, sin sorteo ────────────────────────────
 async function lanzarTorneoNormal(evento, client) {
   const canal = await client.channels.fetch(CANAL_CMD_TORNEO).catch(() => null);
   if (!canal) return;
 
-  const key         = `auto-${evento.hora}-${Date.now()}`;
-  const cupo        = evento.jugadores ?? 8;
-  const cierreMs    = 60 * 1000; // 1 minuto
-  const cierreEn    = Math.floor((Date.now() + cierreMs) / 1000);
-
-  inscripcionesActivas.set(key, {
-    inscritos:    new Set(),
-    maxJugadores: cupo,
-    nombre:       evento.nombre,
-    organizador:  client.user.id,
-  });
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`inscribir_torneo:${key}`)
-      .setLabel(`🎮 ¡Quiero jugar! (0)`)
-      .setStyle(ButtonStyle.Success)
-  );
-
   const embed = new EmbedBuilder()
     .setColor(0x39FF14)
-    .setTitle(`🏆 Torneo: ${evento.nombre}`)
-    .setThumbnail("https://cdn.discordapp.com/attachments/1442748638848876564/1516299423540449280/ChatGPT_Image_15_jun_2026__23_31_21.pngexxxxxxxxxxxx-removebg-preview.png?ex=6a322362&is=6a30d1e2&hm=ae749a81460b7b70e00e225ddc691f29a37304cf4a6787c419a0886a8b4ad8d6&")
-    .setDescription(`${ROL_MENTION} **¡Se abre el sorteo!**\n\nPresiona el botón para entrar al sorteo.\nEn **1 minuto** se seleccionarán **${cupo} jugadores** aleatoriamente.`)
-    .addFields(
-      { name: "✨ Nombre",       value: evento.nombre,              inline: true },
-      { name: "🎰 Cupo sorteo", value: `${cupo} jugadores`,        inline: true },
-      { name: "👤 Organizador", value: `<@${client.user.id}>`,     inline: true },
-      { name: "⏳ Cierra en",   value: `<t:${cierreEn}:R>`,        inline: true },
-      { name: "✋ Inscritos",   value: "0",                         inline: true },
+    .setTitle(`🏆 ${evento.nombre}`)
+    .setDescription(
+      `${ROL_MENTION}\n\n` +
+      `🗺️ **El spawn ya está en barrio — ¡métanse!**\n\n` +
+      `📌 **Rank:** ${evento.rank}\n` +
+      `${evento.puntos ? `🏅 **Puntos:** ${evento.puntos}\n` : ""}` +
+      `🎮 Entren al canal de voz y al servidor ahora.`
     )
-    .setFooter({ text: "¡Todos tienen la misma oportunidad!" })
     .setTimestamp();
 
-  const msg = await canal.send({
-    content: `${ROL_MENTION} 🏆 **¡Torneo ${evento.nombre} — Entra al sorteo!**`,
-    embeds:  [embed],
-    components: [row]
-  });
-
-  // Actualizar embed cada 15 segundos con el conteo de inscritos
-  const intervalUpdate = setInterval(async () => {
-    const data = inscripcionesActivas.get(key);
-    if (!data) { clearInterval(intervalUpdate); return; }
-    try {
-      const updatedRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`inscribir_torneo:${key}`)
-          .setLabel(`🎮 ¡Quiero jugar! (${data.inscritos.size})`)
-          .setStyle(ButtonStyle.Success)
-      );
-      const updatedEmbed = EmbedBuilder.from(embed)
-        .spliceFields(4, 1, { name: "✋ Inscritos", value: `${data.inscritos.size}`, inline: true });
-      await msg.edit({ embeds: [updatedEmbed], components: [updatedRow] });
-    } catch {}
-  }, 15 * 1000);
-
-  // Cerrar e iniciar sorteo después de 1 minuto
-  setTimeout(async () => {
-    clearInterval(intervalUpdate);
-    const data = inscripcionesActivas.get(key);
-    inscripcionesActivas.delete(key);
-
-    // Deshabilitar botón
-    try {
-      const disabledRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`inscribir_torneo:${key}`)
-          .setLabel(`🎮 ¡Quiero jugar! (${data?.inscritos?.size ?? 0})`)
-          .setStyle(ButtonStyle.Success)
-          .setDisabled(true)
-      );
-      await msg.edit({ components: [disabledRow] });
-    } catch {}
-
-    if (!data || data.inscritos.size === 0) {
-      await canal.send({ embeds: [new EmbedBuilder()
-        .setColor(0xe74c3c)
-        .setTitle(`❌ Torneo ${evento.nombre} cancelado`)
-        .setDescription("Nadie se inscribió al torneo.")
-        .setTimestamp()] });
-      return;
-    }
-
-    // Sorteo aleatorio
-    const todos      = [...data.inscritos];
-    const shuffled   = todos.sort(() => Math.random() - 0.5);
-    const ganadores  = shuffled.slice(0, cupo);
-    const noSel      = shuffled.slice(cupo);
-    const medallas   = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
-
-    const listaGanadores = ganadores.map((id, i) => `${medallas[i] || "▪️"} <@${id}>`).join("\n");
-    const listaNoSel     = noSel.length ? noSel.map(id => `<@${id}>`).join(", ") : null;
-
-    const embedResultado = new EmbedBuilder()
-      .setColor(0x39FF14)
-      .setTitle(`🏆 ¡SORTEO FINALIZADO! — ${evento.nombre}`)
-      .setThumbnail("https://cdn.discordapp.com/attachments/1442748638848876564/1516299423540449280/ChatGPT_Image_15_jun_2026__23_31_21.pngexxxxxxxxxxxx-removebg-preview.png?ex=6a322362&is=6a30d1e2&hm=ae749a81460b7b70e00e225ddc691f29a37304cf4a6787c419a0886a8b4ad8d6&")
-      .setDescription(`**¡Felicitaciones a los seleccionados!** 🎉\n\n${listaGanadores}`)
-      .addFields(
-        { name: "👥 Total participantes", value: `${todos.length}`, inline: true },
-        { name: "🎰 Cupo",               value: `${cupo}`,          inline: true },
-      )
-      .setFooter({ text: "¡Buena suerte a todos! 🎮" })
-      .setTimestamp();
-
-    if (listaNoSel) {
-      embedResultado.addFields({ name: "😔 No seleccionados", value: listaNoSel });
-    }
-
-    await canal.send({
-      content: `${ROL_MENTION} ${ganadores.map(id => `<@${id}>`).join(" ")}`,
-      embeds: [embedResultado]
-    });
-
-  }, cierreMs);
+  await canal.send({ content: `${ROL_MENTION}`, embeds: [embed] });
 }
 
 // ── MEGAs: solo notificación con mención especial ─────────────────────────────
@@ -203,7 +100,7 @@ async function lanzarMega(evento, client) {
     )
     .setTimestamp();
 
-  await canal.send({ content: `<@&${ROL_MEGA_1}> <@&${ROL_MEGA_2}>`, embeds: [embed] });
+  await canal.send({ content: undefined, embeds: [embed] });
 }
 
 // ── TANDA DE TORMENTAS ────────────────────────────────────────────────────────
@@ -254,7 +151,7 @@ async function notificarPrevio(evento, tipo, client) {
     });
   }
 
-  await canal.send({ content: `${ROL_MENTION}`, embeds: [embed] });
+  await canal.send({ content: undefined, embeds: [embed] });
 }
 
 // ── BOTONES DE INSCRIPCIÓN ────────────────────────────────────────────────────
@@ -313,7 +210,7 @@ function startCalendarioTask(client) {
           if (canal) {
             await canal.send({ content: `!battle` });
             await canal.send({
-              content: `${ROL_MENTION}`,
+              content: undefined,
               embeds: [new EmbedBuilder()
                 .setColor(0xff6b00)
                 .setTitle("💥 x1 Battle Royale")
@@ -326,7 +223,7 @@ function startCalendarioTask(client) {
           if (canal) {
             await canal.send({ content: `!drop` });
             await canal.send({
-              content: `${ROL_MENTION}`,
+              content: undefined,
               embeds: [new EmbedBuilder()
                 .setColor(0xe74c3c)
                 .setTitle("🎁 DROP DEL DÍA")

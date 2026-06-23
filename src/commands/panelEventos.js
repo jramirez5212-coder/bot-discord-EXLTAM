@@ -31,119 +31,113 @@ function diffEnPalabras(diffMin) {
   return `en ${horas}h ${mins}min`;
 }
 
-// ── PANEL DE EVENTOS ──────────────────────────────────────────────────────────
-function buildPanelEmbed(EVENTOS, label = 'ROLAS') {
+// ── PANEL DE EVENTOS UNIFICADO ────────────────────────────────────────────────
+function getEventoActualYProximos(EVENTOS) {
   const ahora = (() => {
     const c = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
     return c.getHours() * 60 + c.getMinutes();
   })();
-
   function horaAMin(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
-
   const ordenados = [...EVENTOS].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
 
-  // Encontrar evento actual (el último que ya pasó)
-  let eventoActual = null;
-  let eventoActualIdx = -1;
+  let actual = null, actualIdx = -1;
   for (let i = ordenados.length - 1; i >= 0; i--) {
-    if (horaAMin(ordenados[i].hora) <= ahora) {
-      eventoActual    = ordenados[i];
-      eventoActualIdx = i;
-      break;
-    }
+    if (horaAMin(ordenados[i].hora) <= ahora) { actual = ordenados[i]; actualIdx = i; break; }
   }
-  if (!eventoActual) {
-    eventoActual    = ordenados[ordenados.length - 1];
-    eventoActualIdx = ordenados.length - 1;
-  }
+  if (!actual) { actual = ordenados[ordenados.length - 1]; actualIdx = ordenados.length - 1; }
 
-  // Próximos 2 eventos con timestamp de Discord para cuenta regresiva nativa
   const proximos = [];
   for (let i = 1; i <= 2; i++) {
-    const idx     = (eventoActualIdx + i) % ordenados.length;
-    const e       = ordenados[idx];
+    const idx = (actualIdx + i) % ordenados.length;
+    const e   = ordenados[idx];
     const diffMin = (horaAMin(e.hora) - ahora + 1440) % 1440;
-    const tsUnix  = Math.floor(Date.now() / 1000) + diffMin * 60;
-    proximos.push({ ...e, diffMin, tsUnix });
+    proximos.push({ ...e, diffMin });
+  }
+  return { actual, proximos };
+}
+
+function buildPanelEmbedUnificado(EVENTOS, EVENTOS_RUSH) {
+  const { actual: rActual, proximos: rProximos } = getEventoActualYProximos(EVENTOS);
+  const { actual: rushActual, proximos: rushProximos } = getEventoActualYProximos(EVENTOS_RUSH);
+
+  function fmtActual(e) {
+    const em = EMOJIS[e.tipo]?.emoji || "🎮";
+    return `${e.hora} — ${em} **${e.nombre}**${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**\n🟢 **EN CURSO**`;
+  }
+  function fmtProximos(proximos) {
+    return proximos.map(e => {
+      const em = EMOJIS[e.tipo]?.emoji || "🎮";
+      return `${e.hora} — ${em} **${e.nombre}**${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**\n⏳ ${diffEnPalabras(e.diffMin)}`;
+    }).join("\n\n");
   }
 
-  const COLOR_PANEL = label === "RUSH" ? 0x3498db : 0xFF69B4; // Azul RUSH, Rosado ROLAS
-
-  const embed = new EmbedBuilder()
-    .setColor(COLOR_PANEL)
-    .setTitle(`📊 Panel de Eventos — ${label}`)
-    .addFields(
-      {
-        name: "🟢 ── AHORA ──",
-        value: `${eventoActual.hora} — ${emoji} **${eventoActual.nombre}**${eventoActual.puntos ? ` → ${eventoActual.puntos}` : ""} → Rank **${eventoActual.rank}**\n🟢 **EN CURSO**`,
-        inline: false
-      },
-      {
-        name: "📅 ── EVENTOS PRÓXIMOS ──",
-        value: proximos.map(e => {
-          const em = EMOJIS[e.tipo] || "🎮";
-          return `${e.hora} — ${em} **${e.nombre}**${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**\n⏳ ${diffEnPalabras(e.diffMin)}`;
-        }).join("\n\n"),
-        inline: false
-      }
-    )
-    .setFooter({ text: `Sistema de Eventos — ${label} | Última actualización` })
-    .setTimestamp();
-
-  return embed;
-}
-
-function buildListadoEmbed(EVENTOS) {
-  function horaAMin(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
-  const ordenados = [...EVENTOS].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
-
-  const lineas = ordenados.map(e => {
-    const em = EMOJIS[e.tipo] || "🎮";
-    return `• **${e.hora}** — ${em} ${e.nombre}${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**`;
-  });
-
   return new EmbedBuilder()
-    .setColor(0x39FF14)
-    .setTitle("📋 Listado de eventos")
-    .setDescription(lineas.join("\n"))
+    .setColor(0xFF69B4) // Rosado principal
+    .setTitle("📊 Panel de Eventos — EXLATAM")
+    .addFields(
+      { name: "🟣 ── ROLAS — AHORA ──",        value: fmtActual(rActual),      inline: false },
+      { name: "📅 ── ROLAS — PRÓXIMOS ──",      value: fmtProximos(rProximos),  inline: false },
+      { name: "\u200b",                          value: "\u200b",                inline: false }, // separador
+      { name: "🔵 ── RUSH — AHORA ──",          value: fmtActual(rushActual),   inline: false },
+      { name: "📅 ── RUSH — PRÓXIMOS ──",       value: fmtProximos(rushProximos), inline: false },
+    )
+    .setFooter({ text: "Sistema de Eventos — EXLATAM | Última actualización" })
     .setTimestamp();
 }
+
+let panelMsgId = null;
 
 async function initPanelEventos(client, EVENTOS, EVENTOS_RUSH) {
   await actualizarPanel(client, EVENTOS, EVENTOS_RUSH);
   setInterval(() => actualizarPanel(client, EVENTOS, EVENTOS_RUSH), 60 * 1000);
 }
 
-async function actualizarPanelUnico(canal, client, EVENTOS, label, msgIdRef, customIdSuffix) {
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`panel_ver_todos${customIdSuffix}`).setLabel(`Ver todos — ${label}`).setEmoji("📋").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`panel_proximo_torneo${customIdSuffix}`).setLabel(`Próximo ${label}`).setEmoji("🏆").setStyle(label === "RUSH" ? ButtonStyle.Danger : ButtonStyle.Primary)
-  );
-  const embed = buildPanelEmbed(EVENTOS, label);
-  if (msgIdRef.id) {
-    try {
-      const msg = await canal.messages.fetch(msgIdRef.id);
-      await msg.edit({ embeds: [embed], components: [row] });
-      return;
-    } catch { msgIdRef.id = null; }
-  }
-  const msg = await canal.send({ embeds: [embed], components: [row] });
-  msgIdRef.id = msg.id;
-}
-
-const rolasRef = { id: null };
-const rushRef  = { id: null };
-
 async function actualizarPanel(client, EVENTOS, EVENTOS_RUSH) {
   try {
     const canal = await client.channels.fetch(CANAL_PANEL_EVENTOS);
     if (!canal) return;
-    await actualizarPanelUnico(canal, client, EVENTOS, "ROLAS", rolasRef, "");
-    if (EVENTOS_RUSH) await actualizarPanelUnico(canal, client, EVENTOS_RUSH, "RUSH", rushRef, "_rush");
+
+    const embed = buildPanelEmbedUnificado(EVENTOS, EVENTOS_RUSH || EVENTOS);
+
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("panel_ver_todos").setLabel("Eventos ROLAS").setEmoji("🟣").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("panel_ver_todos_rush").setLabel("Eventos RUSH").setEmoji("🔵").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("panel_proximo_torneo").setLabel("Próximo ROLAS").setEmoji("🏆").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("panel_proximo_torneo_rush").setLabel("Próximo RUSH").setEmoji("🏆").setStyle(ButtonStyle.Primary)
+    );
+
+    if (panelMsgId) {
+      try {
+        const msg = await canal.messages.fetch(panelMsgId);
+        await msg.edit({ embeds: [embed], components: [row] });
+        return;
+      } catch { panelMsgId = null; }
+    }
+
+    const msgs = await canal.messages.fetch({ limit: 10 });
+    const existing = msgs.find(m => m.author.id === client.user.id && m.embeds.length > 0);
+    if (existing) { panelMsgId = existing.id; await existing.edit({ embeds: [embed], components: [row] }); return; }
+
+    const msg = await canal.send({ embeds: [embed], components: [row] });
+    panelMsgId = msg.id;
   } catch (e) {
     console.error("[PANEL] Error:", e.message);
   }
 }
+function buildListadoEmbed(EVENTOS, label) {
+  function horaAMin(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
+  const ordenados = [...EVENTOS].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
+  const lineas = ordenados.map(e => {
+    const em = EMOJIS[e.tipo]?.emoji || "🎮";
+    return `• **${e.hora}** — ${em} ${e.nombre}${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**`;
+  });
+  return new EmbedBuilder()
+    .setColor(label === "RUSH" ? 0x3498db : 0xFF69B4)
+    .setTitle(`📋 Listado de eventos — ${label}`)
+    .setDescription(lineas.join("\n"))
+    .setTimestamp();
+}
+
 
 async function handlePanelButton(interaction, EVENTOS, EVENTOS_RUSH) {
   if (!interaction.isButton()) return;
@@ -157,8 +151,7 @@ async function handlePanelButton(interaction, EVENTOS, EVENTOS_RUSH) {
   const label = isRush ? "RUSH" : "ROLAS";
 
   if (interaction.customId.startsWith("panel_ver_todos")) {
-    const embed = buildListadoEmbed(eventosUsar);
-    embed.setTitle(`📋 Listado de eventos — ${label}`);
+    const embed = buildListadoEmbed(eventosUsar, label);
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 
@@ -170,7 +163,7 @@ async function handlePanelButton(interaction, EVENTOS, EVENTOS_RUSH) {
     const ordenados = [...eventosUsar].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
     const proximo = ordenados.find(e => horaAMin(e.hora) > ahora) || ordenados[0];
     const diffMin = ((horaAMin(proximo.hora) - ahora) + 1440) % 1440;
-    const emoji = EMOJIS[proximo.tipo] || "🎮";
+    const emoji   = EMOJIS[proximo.tipo] || "🎮";
 
     const embed = new EmbedBuilder()
       .setColor(isRush ? 0x3498db : 0xFF69B4)

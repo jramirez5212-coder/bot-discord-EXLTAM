@@ -22,23 +22,20 @@ function detectarSistema(member) {
 async function handleInactividad(message) {
   if (message.author.bot) return;
   const cmd = message.content.trim().toLowerCase();
-  if (cmd !== "!inactivo" && cmd !== "!inactivorush") return;
+  if (cmd !== "!inactivorolas" && cmd !== "!inactivorush") return;
 
-  // Si usó !inactivorush, forzar sistema RUSH
-  // Si usó !inactivo, detectar automáticamente
+  // Si usó !inactivorush, forzar sistema RUSH; si usó !inactivorolas, forzar ROLAS
   let sistema;
   if (cmd === "!inactivorush") {
     sistema = "RUSH";
   } else {
-    sistema = detectarSistema(message.member);
-    if (!sistema)
-      return message.reply("❌ No tienes un rol de actividad (ROLAS o RUSH) para usar este comando.");
+    sistema = "ROLAS";
   }
 
-  const canalValido = sistema === "ROLAS" ? CANAL_CMD_INACTIVO : RUSH_CANAL_CMD_INACTIVO;
+  // Ambos comandos van al mismo canal
+  const canalValido = CANAL_CMD_INACTIVO;
   if (message.channel.id !== canalValido) {
-    const cmdCorrecto = sistema === "RUSH" ? "!inactivorush" : "!inactivo";
-    const aviso = await message.reply(`❌ El comando \`${cmdCorrecto}\` solo se puede usar en <#${canalValido}>`);
+    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${canalValido}>`);
     setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
     return;
   }
@@ -112,7 +109,7 @@ async function handleInactividadModal(interaction, client) {
   const sistema = interaction.customId.split(":")[1] || "ROLAS";
   const actRolId    = sistema === "RUSH" ? RUSH_ACTIVITY_ROLE_ID : ACTIVITY_ROLE_ID;
   const inactRolId  = sistema === "RUSH" ? RUSH_ROL_INACTIVO_ID  : ROL_INACTIVO_ID;
-  const canalInact  = sistema === "RUSH" ? RUSH_CANAL_CMD_INACTIVO : CANAL_CMD_INACTIVO;
+  const canalInact  = CANAL_CMD_INACTIVO; // ambos sistemas van al mismo canal
 
   const razon = interaction.fields.getTextInputValue("razon");
   const desde = interaction.fields.getTextInputValue("desde").trim();

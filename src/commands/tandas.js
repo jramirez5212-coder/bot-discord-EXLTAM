@@ -57,13 +57,13 @@ async function handleTandas(message) {
   let enviados = 0;
   const MAX    = 8;
   const canal  = message.channel;
-  const rolMention = esRush ? `<@&${RUSH_ACTIVITY_ROLE_ID}>` : `<@&${ACTIVITY_ROLE_ID}>`;
+  // Sin mención de rol
   const label  = esRush ? "RUSH" : "ROLAS";
 
   const enviarMensaje = async (num) => {
     try {
       await canal.send({
-        content: rolMention,
+        // sin content
         embeds: [new EmbedBuilder()
           .setColor(0x3498db)
           .setTitle(`🌪️ TANDA DE TORMENTAS — ${label} ¡ENTRAR! (${num}/${MAX})`)

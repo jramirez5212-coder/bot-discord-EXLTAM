@@ -138,30 +138,7 @@ module.exports = {
       antiFarmeoTimers.delete(userId);
     }
 
-    // ── ANTI-FARMEO ───────────────────────────────────────────
-    if (newState.channelId && !nuevoCanalEsAFK) {
-      const estaEnsordecido = newState.selfDeaf || newState.deaf;
-      const estaSilenciado  = (newState.selfMute || newState.mute) && !estaEnsordecido;
-
-      const exentoTotal = afkExemptos.has(userId);
-      const exentoDeaf  = afkExemptoDeaf.has(userId);
-      const exentoMute  = afkExemptosMute.has(userId);
-
-      if ((estaEnsordecido && !exentoTotal && !exentoDeaf) ||
-          (estaSilenciado  && !exentoTotal && !exentoMute)) {
-        if (!antiFarmeoTimers.has(userId)) {
-          const tiempoEspera = estaEnsordecido ? TIEMPO_ENSORDECIDO_MS : TIEMPO_SILENCIADO_MS;
-          const timer = setTimeout(() => enviarChequeoAntiFarmeo(member, client, userId), tiempoEspera);
-          antiFarmeoTimers.set(userId, timer);
-        }
-      } else {
-        clearTimeout(antiFarmeoTimers.get(userId));
-        antiFarmeoTimers.delete(userId);
-      }
-    } else {
-      clearTimeout(antiFarmeoTimers.get(userId));
-      antiFarmeoTimers.delete(userId);
-    }
+    // Anti-farmeo desactivado
   },
 };
 

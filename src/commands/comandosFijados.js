@@ -14,21 +14,15 @@ const COMANDOS_POR_CANAL = {
   // Canal RUSH de horas desactivado — RUSH no tiene sistema de horas
   // [RUSH_CANAL_CMD_HORAS]: { ... }
   [CANAL_CMD_INACTIVO]: {
-    titulo: "📋 Comando de Inactividad — ROLAS",
-    texto: "`!inactivo` → Justificar tu inactividad (abre formulario)\n\n" +
+    titulo: "📋 Comandos de Inactividad — ROLAS y RUSH",
+    texto: "`!inactivorolas` → Justificar inactividad ROLAS (abre formulario)\n`!inactivorush` → Justificar inactividad RUSH (abre formulario)\n\n" +
            "⚠️ **MUY IMPORTANTE:** las fechas deben ir en formato **AÑO-MES-DÍA** (`YYYY-MM-DD`).\n" +
            "✅ Ejemplo correcto: `2026-06-20`\n" +
            "❌ Incorrecto: `20-06-2026`, `20/06/26`, `junio 20`\n\n" +
            "Si pones el formato mal, el bot puede confundirse y calcular mal tus fechas de inactividad.",
   },
-  [RUSH_CANAL_CMD_INACTIVO]: {
-    titulo: "📋 Comando de Inactividad — RUSH",
-    texto: "`!inactivorush` → Justificar tu inactividad (abre formulario)\n\n" +
-           "⚠️ **MUY IMPORTANTE:** las fechas deben ir en formato **AÑO-MES-DÍA** (`YYYY-MM-DD`).\n" +
-           "✅ Ejemplo correcto: `2026-06-20`\n" +
-           "❌ Incorrecto: `20-06-2026`, `20/06/26`, `junio 20`\n\n" +
-           "Si pones el formato mal, el bot puede confundirse y calcular mal tus fechas de inactividad.",
-  },
+  // Canal RUSH de inactivo desactivado — ambos van al canal ROLAS con !inactivorush
+  // [RUSH_CANAL_CMD_INACTIVO]: { ... }
   [CANAL_CMD_ANUNCIOS]: {
     titulo: "📢 Comandos de Anuncios — ROLAS",
     texto: "`!activense` `!tormenta` `!battle` `!drop` → Notificar eventos a la banda ROLAS\n`!tandastormentas` → Inicia tanda de 8 avisos (ROLAS)\n`!paratanda` → Detiene la tanda\n\n**RUSH:**\n`!activenserush` `!tormentarush` `!battlerush` `!droprush`\n`!tandastormentasrush` → Inicia tanda RUSH\n`!paratandarush` → Detiene la tanda RUSH",
