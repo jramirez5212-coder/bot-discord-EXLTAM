@@ -313,9 +313,9 @@ client.once("clientReady", async () => {
   startActividadTask(client);
   // RUSH solo tiene sistema de inactividad, no de horas/actividad
   // startActividadRushTask desactivado intencionalmente
-  setTimeout(() => startInactividadRushTask(client), 15000);
   startPresenciaRushTask(client);
   startInactividadTask(client);
+  startInactividadRushTask(client);
   startCalendarioTask(client);
   startCalendarioRushTask(client);
   await initPanelEventos(client, EVENTOS, EVENTOS_RUSH).catch(e => console.log("⚠️ Panel eventos:", e.message));
