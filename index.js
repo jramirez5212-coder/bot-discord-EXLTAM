@@ -316,7 +316,6 @@ client.once("clientReady", async () => {
   setTimeout(() => startInactividadRushTask(client), 15000);
   startPresenciaRushTask(client);
   startInactividadTask(client);
-  startInactividadRushTask(client);
   startCalendarioTask(client);
   startCalendarioRushTask(client);
   await initPanelEventos(client, EVENTOS, EVENTOS_RUSH).catch(e => console.log("⚠️ Panel eventos:", e.message));
