@@ -96,7 +96,7 @@ async function lanzarMega(evento, client) {
     )
     .setTimestamp();
 
-  await canal.send({ content: undefined, embeds: [embed] });
+  await canal.send({ content: `${ROL_MENTION}`, embeds: [embed] });
 }
 
 // ── TANDA DE TORMENTAS ────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ async function notificarPrevio(evento, tipo, client) {
     });
   }
 
-  await canal.send({ content: undefined, embeds: [embed] });
+  await canal.send({ content: `${ROL_MENTION}`, embeds: [embed] });
 }
 
 // ── BOTONES DE INSCRIPCIÓN ────────────────────────────────────────────────────

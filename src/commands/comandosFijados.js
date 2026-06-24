@@ -7,10 +7,8 @@ const {
 
 // Texto de comandos por canal
 const COMANDOS_POR_CANAL = {
-  [CANAL_CMD_HORAS]: {
-    titulo: "📊 Comandos de Horas — ROLAS",
-    texto: "`!horas` → Ver tus horas acumuladas\n`!top` → Ver el ranking semanal de actividad",
-  },
+  // Canal de horas ROLAS eliminado del servidor — no usar
+  // [CANAL_CMD_HORAS]: { ... }
   // Canal RUSH de horas desactivado — RUSH no tiene sistema de horas
   // [RUSH_CANAL_CMD_HORAS]: { ... }
   [CANAL_CMD_INACTIVO]: {
