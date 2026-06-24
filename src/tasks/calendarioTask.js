@@ -100,26 +100,50 @@ async function lanzarMega(evento, client) {
     )
     .setTimestamp();
 
-  await canal.send({ content: undefined, embeds: [embed] });
+  await canal.send({ content: `${ROL_MENTION}`, embeds: [embed] });
 }
 
 // ── TANDA DE TORMENTAS ────────────────────────────────────────────────────────
-async function lanzarTormenta(client) {
+async function lanzarTormenta(client, esRush = false) {
   const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
   if (!canal) return;
-  // Dispara el sistema de tandas como si alguien hubiera escrito !tandastormentas
-  const { handleTandas } = require("../commands/tandas");
-  // Creamos un mensaje fake para disparar el handler
-  const fakeMsg = {
-    author:  { bot: false, id: client.user.id },
-    content: "!tandastormentas",
-    channel: canal,
-    member:  { roles: { cache: { has: () => true } } },
-    guild:   canal.guild,
-    reply:   async () => {},
-    delete:  async () => {},
+
+  const rolMention = `<@&${ACTIVITY_ROLE_ID}>`;
+  const label = "ROLAS";
+  let enviados = 0;
+  const MAX = 8;
+
+  const enviarAviso = async () => {
+    enviados++;
+    try {
+      await canal.send({
+        content: rolMention,
+        embeds: [new EmbedBuilder()
+          .setColor(0x3498db)
+          .setTitle(`🌪️ TANDA DE TORMENTAS — ${label} ¡ENTRAR! (${enviados}/${MAX})`)
+          .setDescription("**¡¡¡TANDA DE TORMENTAS, ENTREN!!!!!!**\n\n🌪️ ¡Todos al canal de voz AHORA!")
+          .setFooter({ text: `Aviso ${enviados} de ${MAX} • Próximo en 5 min` })
+          .setTimestamp()]
+      });
+    } catch(e) { console.error("[TANDA] Error:", e.message); }
   };
-  await handleTandas(fakeMsg);
+
+  await enviarAviso();
+  if (enviados >= MAX) return;
+
+  const interval = setInterval(async () => {
+    await enviarAviso();
+    if (enviados >= MAX) {
+      clearInterval(interval);
+      try {
+        await canal.send({ embeds: [new EmbedBuilder()
+          .setColor(0x39FF14)
+          .setTitle(`✅ Tanda finalizada — ${label}`)
+          .setDescription(`Se enviaron **${MAX} avisos**. ¡A jugar! 🎮`)
+          .setTimestamp()] });
+      } catch {}
+    }
+  }, 5 * 60 * 1000);
 }
 
 // ── NOTIFICACIONES PREVIAS ────────────────────────────────────────────────────
@@ -208,9 +232,8 @@ function startCalendarioTask(client) {
         else if (evento.tipo === "battle") {
           const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
           if (canal) {
-            await canal.send({ content: `!battle` });
             await canal.send({
-              content: undefined,
+              content: `${ROL_MENTION}`,
               embeds: [new EmbedBuilder()
                 .setColor(0xff6b00)
                 .setTitle("💥 x1 Battle Royale")
@@ -221,9 +244,8 @@ function startCalendarioTask(client) {
         } else if (evento.tipo === "drop") {
           const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
           if (canal) {
-            await canal.send({ content: `!drop` });
             await canal.send({
-              content: undefined,
+              content: `${ROL_MENTION}`,
               embeds: [new EmbedBuilder()
                 .setColor(0xe74c3c)
                 .setTitle("🎁 DROP DEL DÍA")

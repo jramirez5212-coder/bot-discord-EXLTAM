@@ -27,9 +27,10 @@ function detectarSistema(member) {
 function cargarDatos(isRush) { return isRush ? loadDataRush() : loadData(); }
 function guardarDatos(data, isRush) { isRush ? saveDataRush(data) : saveData(data); }
 
-// Al arrancar: recuperar sesiones activas de ambos archivos
-function recoverSessions(client) {
+// Al arrancar: recuperar sesiones activas
+async function recoverSessions(client) {
   try {
+    // 1. Recuperar sesiones del JSON (para continuar contando horas)
     for (const [isRush, label] of [[false,"ROLAS"],[true,"RUSH"]]) {
       const data = cargarDatos(isRush);
       for (const userId in data) {
@@ -38,6 +39,28 @@ function recoverSessions(client) {
           activeSessions.set(userId, { startMs: ud.sessionStart, isRush });
           console.log(`[VOZ-${label}] ↩ Sesión recuperada: ${userId} desde ${new Date(ud.sessionStart).toLocaleTimeString()}`);
         }
+      }
+    }
+
+    // 2. Escanear quién está en voz AHORA y agregar al activeSessions
+    const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, AFK_CHANNEL_ID, VOICE_CHANNELS_ALLOWED } = require("../config");
+    await client.guilds.fetch();
+    for (const [, guild] of client.guilds.cache) {
+      await guild.members.fetch().catch(() => {});
+      for (const [, member] of guild.members.cache) {
+        if (!member.voice.channelId) continue;
+        if (member.voice.channelId === AFK_CHANNEL_ID) continue;
+        if (!VOICE_CHANNELS_ALLOWED.includes(member.voice.channelId)) continue;
+        if (member.user.bot) continue;
+        if (activeSessions.has(member.id)) continue; // ya tiene sesión
+
+        const esRolas = member.roles.cache.has(ACTIVITY_ROLE_ID);
+        const esRush  = member.roles.cache.has(RUSH_ACTIVITY_ROLE_ID);
+        if (!esRolas && !esRush) continue;
+
+        const isRush = !esRolas && esRush;
+        activeSessions.set(member.id, { startMs: Date.now(), isRush });
+        console.log(`[VOZ-${isRush?"RUSH":"ROLAS"}] ▶ Sesión iniciada al arrancar: ${member.user.tag}`);
       }
     }
   } catch(e) { console.error("[VOZ] Error recuperando sesiones:", e.message); }
