@@ -60,7 +60,6 @@ async function lanzarTorneoNormal(evento, client) {
     .setColor(0x3498db)
     .setTitle(`🏆 ${evento.nombre} — RUSH`)
     .setDescription(
-      `${ROL_MENTION}\n\n` +
       `🗺️ **El spawn ya está en barrio — ¡métanse!**\n\n` +
       `📌 **Rank:** ${evento.rank}\n` +
       `${evento.puntos ? `🏅 **Puntos:** ${evento.puntos}\n` : ""}` +
@@ -68,7 +67,7 @@ async function lanzarTorneoNormal(evento, client) {
     )
     .setTimestamp();
 
-  await canal.send({ content: `${ROL_MENTION}`, embeds: [embed] });
+  await canal.send({ content: undefined, embeds: [embed] });
 }
 
 // ── MEGAs: solo notificación con mención especial ─────────────────────────────
@@ -96,7 +95,7 @@ async function lanzarMega(evento, client) {
     )
     .setTimestamp();
 
-  await canal.send({ content: `${ROL_MENTION}`, embeds: [embed] });
+  await canal.send({ content: undefined, embeds: [embed] });
 }
 
 // ── TANDA DE TORMENTAS ────────────────────────────────────────────────────────
@@ -171,7 +170,7 @@ async function notificarPrevio(evento, tipo, client) {
     });
   }
 
-  await canal.send({ content: `${ROL_MENTION}`, embeds: [embed] });
+  await canal.send({ content: undefined, embeds: [embed] });
 }
 
 // ── BOTONES DE INSCRIPCIÓN ────────────────────────────────────────────────────
@@ -229,7 +228,7 @@ function startCalendarioRushTask(client) {
           const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
           if (canal) {
             await canal.send({
-              content: `${ROL_MENTION}`,
+              content: undefined,
               embeds: [new EmbedBuilder()
                 .setColor(0xff6b00)
                 .setTitle("💥 x1 Battle Royale — RUSH")
@@ -241,7 +240,7 @@ function startCalendarioRushTask(client) {
           const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
           if (canal) {
             await canal.send({
-              content: `${ROL_MENTION}`,
+              content: undefined,
               embeds: [new EmbedBuilder()
                 .setColor(0xe74c3c)
                 .setTitle("🎁 DROP DEL DÍA — RUSH")

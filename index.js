@@ -576,21 +576,13 @@ client.on("interactionCreate", async interaction => {
       const approved=interaction.customId.startsWith("aprobar_");const uid=interaction.customId.split("_")[1];
       const user=await client.users.fetch(uid).catch(()=>null);if(!user)return interaction.reply({content:"No encontré al usuario.",ephemeral:true});
       if(approved){
-        // Detectar si se postuló para ROLAS o RUSH según la última respuesta
         const apps = loadApps();
         const app  = apps[uid];
         const ultimaRespuesta = app?.answers?.[app.answers.length - 1]?.toLowerCase() || "";
         const esRush = ultimaRespuesta.includes("rush");
-        const rolActividad = esRush ? "1518491812593926274" : "1516258966756266054";
         const banda = esRush ? "RUSH" : "ROLAS";
 
-        // Asignar rol de actividad correcto
-        try {
-          const guild  = await client.guilds.fetch("1188377448346288158");
-          const member = await guild.members.fetch(uid).catch(()=>null);
-          if (member) await member.roles.add(rolActividad).catch(()=>null);
-        } catch(e) { console.error("[POSTULACION] Error asignando rol:", e.message); }
-
+        // NO se asignan roles aquí — el staff los da manualmente con !nuevo después
         await user.send({content:`✅ Tu **POSTULACIÓN** fue aprobada por ${interaction.user}.\n\nFuiste asignado a **${banda}**. Se creó un ticket para continuar. La segunda etapa será por llamada.`}).catch(()=>null);
         const t=await createResultTicket(uid,"aprobada",interaction.user, banda);
         await interaction.message.edit({components:[]}).catch(()=>null);
