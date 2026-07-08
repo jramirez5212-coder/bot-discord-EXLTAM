@@ -308,34 +308,10 @@ const client = new Client({
 
 client.once("clientReady", async () => {
   console.log(`✅ BOT COMPLETO EXLATAM — ${client.user.tag}`);
-  voiceEvent.recoverSessions(client);
-  recoverTorneoRoles(client);
-  startActividadTask(client);
-  // RUSH solo tiene sistema de inactividad, no de horas/actividad
-  // startActividadRushTask desactivado intencionalmente
-  startPresenciaRushTask(client);
-  startInactividadTask(client);
-  startInactividadRushTask(client);
-  startCalendarioTask(client);
-  startCalendarioRushTask(client);
-  await initPanelEventos(client, EVENTOS, EVENTOS_RUSH).catch(e => console.log("⚠️ Panel eventos:", e.message));
-  // Mensaje fijado de triunfos al iniciar
-  try {
-    const canalTriunfos = await client.channels.fetch(CANAL_TRIUNFOS_ID);
-    if (canalTriunfos) await ensurePinnedTriunfos(canalTriunfos);
-  } catch (e) { console.log("⚠️ Triunfos pin:", e.message); }
   await botLog("🟢","Bot iniciado",`Conectado como **${client.user.tag}**`,"auto");
   await sendAutoPostulacionesPanel("auto").catch(e=>console.log("⚠️",e.message));
   await sendTicketPanelViejo().catch(e=>console.log("⚠️ Panel viejo:",e.message));
   setInterval(()=>sendAutoPostulacionesPanel("auto").catch(()=>{}), 10*60*1000);
-
-  // Mensajes fijados de comandos al iniciar
-  for (const channelId of Object.keys(COMANDOS_POR_CANAL)) {
-    try {
-      const ch = await client.channels.fetch(channelId);
-      if (ch) await ensurePinnedCommands(ch);
-    } catch (e) { console.log(`⚠️ Comandos fijados ${channelId}:`, e.message); }
-  }
 });
 
 client.on("guildMemberAdd", async member => {
@@ -368,95 +344,55 @@ client.on("guildMemberAdd", async member => {
   } catch(e){console.log("⚠️ Bienvenida error:",e.message);}
 });
 
-client.on("voiceStateUpdate",(o,n)=>voiceEvent.execute(o,n,client));
+client.on("voiceStateUpdate", () => {}); // desactivado
 
 client.on("messageCreate", async message => {
   if (message.guild) {
-    // Armario primero — Rolas Academy es un bot y necesita procesarse
+    // Armario — Rolas Academy es un bot
     await handleArmarioLogs(message);
-    await handleComandosFijados(message);
   }
 
-  if (message.author.bot) return; // ignorar otros bots para el resto de comandos
+  if (message.author.bot) return;
 
   if (message.guild) {
-    await handleHoras(message, client);
-    await handleHorasRush(message, client);
-    await handleAnuncios(message);
-    await handleInactividad(message);
-    await handleTorneo(message);
+    // Inactividad simple — reenvía lo que escribió la persona como embed
+    const CANAL_INACTIVO_ROLAS = "1516259366557323386";
+    const CANAL_INACTIVO_RUSH  = "1516259366557323386"; // mismo canal
+    if (message.channel.id === CANAL_INACTIVO_ROLAS) {
+      try {
+        const embed = new EmbedBuilder()
+          .setColor(0x39FF14)
+          .setAuthor({ name: message.member.displayName, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+          .setDescription(message.content || "_Sin texto_")
+          .setTimestamp()
+          .setFooter({ text: `ID: ${message.author.id}` });
+        if (message.attachments.size > 0) {
+          const img = message.attachments.find(a => a.contentType?.startsWith("image"));
+          if (img) embed.setImage(img.url);
+        }
+        await message.channel.send({ embeds: [embed] });
+        await message.delete().catch(() => {});
+      } catch(e) { console.error("[INACTIVIDAD]", e.message); }
+      return;
+    }
+
     await handleAdmin(message, client);
     await handleNuevo(message, client);
     await handleNuevoFotoSS(message, client);
-    await handleTandas(message);
     await handleMigrarRoles(message, client);
-    await handleEmbedCreator(message);
-    await handleAnuncioCmd(message);
-    await handleRecordatorio(message);
-    await handleEncuesta(message);
-    await handleTriunfos(message);
-    await handleTopTriunfos(message);
-    await handleMisTriunfos(message);
     await handleArmarioCommand(message);
     await handleTopArmario(message);
     await handleTopMetio(message);
-
-    // ── Comandos de control del anti-farmeo ──────────────────────────────────
-    const cmdAfk = message.content.trim().toLowerCase().split(/\s+/);
-    const afkCmds = ["!desactivarafk","!activarafk","!desactivarsilenciadoafk","!activarsilenciadoafk","!desactivarensordecidoafk","!activarensordecidoafk"];
-    if (afkCmds.includes(cmdAfk[0])) {
-      if (!isStaffMember(message.member)) return message.reply("❌ No tienes permiso.").catch(()=>null);
-      const target = message.mentions.members.first();
-      if (!target) return message.reply("❌ Menciona a un usuario. Ej: `!desactivarafk @usuario`").catch(()=>null);
-      const uid = target.id;
-      let respuesta = "";
-      switch(cmdAfk[0]) {
-        case "!desactivarafk":
-          voiceEvent.afkExemptos.add(uid);
-          voiceEvent.afkExemptosMute.add(uid);
-          voiceEvent.afkExemptoDeaf.add(uid);
-          respuesta = `✅ **Anti-farmeo desactivado** para ${target} (ensordecido + silenciado).`;
-          break;
-        case "!activarafk":
-          voiceEvent.afkExemptos.delete(uid);
-          voiceEvent.afkExemptosMute.delete(uid);
-          voiceEvent.afkExemptoDeaf.delete(uid);
-          respuesta = `✅ **Anti-farmeo activado** para ${target}.`;
-          break;
-        case "!desactivarsilenciadoafk":
-          voiceEvent.afkExemptosMute.add(uid);
-          respuesta = `✅ ${target} ya no será chequeado por estar **silenciado**.`;
-          break;
-        case "!activarsilenciadoafk":
-          voiceEvent.afkExemptosMute.delete(uid);
-          respuesta = `✅ ${target} volverá a ser chequeado por estar **silenciado**.`;
-          break;
-        case "!desactivarensordecidoafk":
-          voiceEvent.afkExemptoDeaf.add(uid);
-          respuesta = `✅ ${target} ya no será chequeado por estar **ensordecido**.`;
-          break;
-        case "!activarensordecidoafk":
-          voiceEvent.afkExemptoDeaf.delete(uid);
-          respuesta = `✅ ${target} volverá a ser chequeado por estar **ensordecido**.`;
-          break;
-      }
-      return message.reply(respuesta).catch(()=>null);
-    }
-
-    if (message.content.trim().toLowerCase() === "!panel") {
-      if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos.").catch(()=>null);
-      await sendAutoPostulacionesPanel("manual",`<@${message.author.id}>`);
-      return message.reply("✅ Panel enviado/actualizado.").catch(()=>null);
-    }
-    if (message.content === "!paneltickets") {
-      if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) return message.reply("No tienes permisos.");
-      await message.channel.send(ticketPanel(message.guild.id));
-      return message.reply("✅ Panel enviado.");
-    }
-    return;
   }
 
-  // DMs postulaciones
+  // DMs — postulaciones
+  if (!message.guild) {
+    await handlePostulacionDM(message);
+  }
+});
+
+// ── Función de DMs de postulaciones ───────────────────────────────────────────
+async function handlePostulacionDM(message) {
   const userId = message.author.id;
   const apps   = loadApps();
   const app    = apps[userId];
@@ -482,25 +418,16 @@ client.on("messageCreate", async message => {
     await sendApplicationToStaff(userId);return;
   }
   apps[userId]=app;saveApps(apps);await askQuestion(userId);
-});
+}
 
 client.on("interactionCreate", async interaction => {
   try {
-    await handleInactividadButton(interaction);
-    await handleInactividadModal(interaction, client);
-    await handleTorneoInteraction(interaction, client);
     await handleNuevoButton(interaction, client);
     await handleTutorialButton(interaction, client);
     await handleSSResultButton(interaction, client);
     await handleBandaButton(interaction, client);
     await handleChiteadoButton(interaction, client);
-    await handleInactividadDecision(interaction, client);
-    await handleRegresesButton(interaction, client);
-    await voiceEvent.handleAntiFarmeoButton(interaction);
-    await handleInscripcionButton(interaction);
-    await handleInscripcionRushButton(interaction);
     await handleArmarioAlertaButton(interaction);
-    await handlePanelButton(interaction, EVENTOS, EVENTOS_RUSH);
     if (interaction.replied || interaction.deferred) return;
 
     if (interaction.isModalSubmit()) {
