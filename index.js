@@ -59,7 +59,7 @@ const GUILD_VIEJO_ID = "1455775938200473606";
 const GUILD_NUEVO_ID = "1188377448346288158";
 
 const config = {
-  guildName: "EXLATAM / #300K?",
+  guildName: "PARIS.COM",
   guildId: GUILD_NUEVO_ID,
   welcomeChannelId: "1516259293878550589",
   staffBandasRoleId: "1516258946715881592",
@@ -68,13 +68,13 @@ const config = {
   categoriaAprobadosId: "1516259245979603034",
   categoriaRechazadosId: "1516259249246703698",
   botLogsChannelId: "1516259269341745243",
-  logoUrl: "https://cdn.discordapp.com/attachments/1442748638848876564/1516299423540449280/ChatGPT_Image_15_jun_2026__23_31_21.pngexxxxxxxxxxxx-removebg-preview.png?ex=6a322362&is=6a30d1e2&hm=ae749a81460b7b70e00e225ddc691f29a37304cf4a6787c419a0886a8b4ad8d6&",
-  bannerUrl: "https://cdn.discordapp.com/attachments/1495181084248510555/1496964414467866806/image.png?ex=6a31abc0&is=6a305a40&hm=2f8f3b93ee8f7f7dafadb0f2625c1e295590351ac181941100416f2639e13c97&"
+  logoUrl: "https://cdn.discordapp.com/attachments/1442748638848876564/1525014565451075694/Diseno_sin_titulo__2_-removebg-preview.png?ex=6a5280bd&is=6a512f3d&hm=466422ef31eed7bc2d88b3b2feea92209608cbb9bfd7e9a5ae64f67a23e1a58e&",
+  bannerUrl: "https://cdn.discordapp.com/attachments/1442748638848876564/1524958605864861906/ChatGPT_Image_9_jul_2026__08_59_13_p.m.-removebg.png?ex=6a524c9f&is=6a50fb1f&hm=f10320d7bbcc2071d0456fd02527ae9eece00c8e2f90ad4be8c404b9773652e7&"
 };
 
 // Configuración SOLO de bienvenida + tickets para el servidor VIEJO
 const configViejo = {
-  guildName: "EXLATAM",
+  guildName: "PARIS.COM",
   guildId: GUILD_VIEJO_ID,
   welcomeChannelId: "1469434029475496209",
   ticketPanelChannelId: "1469434046638461231",
@@ -139,7 +139,7 @@ const decisionButtons = id => new ActionRowBuilder().addComponents(
 );
 
 const questionEmbed = i => new EmbedBuilder().setColor(COLOR)
-  .setAuthor({name:"EXLATAM Postulaciones",iconURL:config.logoUrl})
+  .setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl})
   .setTitle("📝 | Postulación")
   .setDescription(`**${i+1}/${questions.length}. ${questions[i]}**\n\nResponde enviando un mensaje. Puedes enviar texto, links o imágenes.`)
   .setFooter({text:config.guildName,iconURL:config.logoUrl});
@@ -153,7 +153,7 @@ const buildApplicationEmbed = (user, app) => {
 
   return new EmbedBuilder()
     .setColor(COLOR)
-    .setAuthor({name:"EXLATAM Postulaciones", iconURL:config.logoUrl})
+    .setAuthor({name:"PARIS.COM Postulaciones", iconURL:config.logoUrl})
     .setTitle("📝 **POSTULACIÓN**")
     .setThumbnail(user.displayAvatarURL({dynamic:true}))
     .addFields(
@@ -167,7 +167,7 @@ const buildApplicationEmbed = (user, app) => {
 };
 
 const buildPanel = () => ({
-  embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"EXLATAM Postulaciones",iconURL:config.logoUrl}).setTitle("📝 Sistema de Postulaciones").setDescription("**Bienvenido al sistema oficial de postulaciones de EXLATAM.**\n\nPresiona el botón de abajo para iniciar. El bot te hará las preguntas una por una por DM.\n\nCuando termines, tu postulación llegará al equipo de staff para aprobarla o rechazarla.").setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"EXLATAM • Sistema de Postulaciones",iconURL:config.logoUrl})],
+  embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl}).setTitle("📝 Sistema de Postulaciones").setDescription("**Bienvenido al sistema oficial de postulaciones de PARIS.COM.**\n\nPresiona el botón de abajo para iniciar. El bot te hará las preguntas una por una por DM.\n\nCuando termines, tu postulación llegará al equipo de staff para aprobarla o rechazarla.").setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"PARIS.COM • Sistema de Postulaciones",iconURL:config.logoUrl})],
   components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("start_postulacion").setLabel("Iniciar postulación").setEmoji("📝").setStyle(ButtonStyle.Success))]
 });
 
@@ -180,7 +180,7 @@ const ticketPanel = (guildId) => {
     ? "<:emoji_6:1485010432514326558> __Recompensa:__ Reclamar alguna recompensa."
     : "<:emoji_6:1485010432514326558> __Reportes:__ Reportar alguna inconformidad.";
   return {
-    embeds:[new EmbedBuilder().setColor(COLOR).setTitle("<:emoji_16:1486354271351078923> SISTEMA TICKETS EXLATAM").setDescription(`<:emoji_13:1485010590358568970>  *Si deseas abrir algun ticket lo puedes hacer presionando los botones de abajo:*\n\n\`\`\`INFORMACION IMPORTANTE\`\`\`\n${lineaDesc}\n<:emoji_6:1485010432514326558> __Compras:__ Compras en nuestra tienda.\n<:emoji_6:1485010432514326558> __Partners:__ Alianzas entre discord (PUBLICIDAD).\n\n👇 **SELECCIONA EL TICKET QUE NECESITAS** 👇`).setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"TICKETS"})],
+    embeds:[new EmbedBuilder().setColor(COLOR).setTitle("<:emoji_16:1486354271351078923> SISTEMA TICKETS PARIS.COM").setDescription(`<:emoji_13:1485010590358568970>  *Si deseas abrir algun ticket lo puedes hacer presionando los botones de abajo:*\n\n\`\`\`INFORMACION IMPORTANTE\`\`\`\n${lineaDesc}\n<:emoji_6:1485010432514326558> __Compras:__ Compras en nuestra tienda.\n<:emoji_6:1485010432514326558> __Partners:__ Alianzas entre discord (PUBLICIDAD).\n\n👇 **SELECCIONA EL TICKET QUE NECESITAS** 👇`).setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"TICKETS"})],
     components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(customId).setLabel(label).setEmoji(emoji).setStyle(ButtonStyle.Danger),new ButtonBuilder().setCustomId("ticket_compras").setLabel("Compras").setEmoji("🛍️").setStyle(ButtonStyle.Secondary),new ButtonBuilder().setCustomId("ticket_partners").setLabel("Partners").setEmoji("🤝").setStyle(ButtonStyle.Primary))]
   };
 };
@@ -271,7 +271,7 @@ async function createResultTicket(userId, status, staffUser, banda = null) {
 
     const embed = new EmbedBuilder()
       .setColor(approved ? COLOR : 0xff3c3c)
-      .setAuthor({name:"EXLATAM Postulaciones", iconURL:config.logoUrl})
+      .setAuthor({name:"PARIS.COM Postulaciones", iconURL:config.logoUrl})
       .setTitle(approved ? `✅ **POSTULACIÓN** Aprobada${banda ? ` — ${banda}` : ""}` : "❌ **POSTULACIÓN** Rechazada")
       .setDescription(approved
         ? `Tu **POSTULACIÓN** fue **aprobada** por ${staffUser}.\n\nFuiste asignado a la banda **${banda || "?"}**.\n\nAhora pasas a la **segunda etapa del proceso**, la cual se realizará por **llamada**.\n\nCuando el staff te notifique, deberás entrar a la **sala de espera** para continuar con la entrevista.`
@@ -295,7 +295,7 @@ async function createResultTicket(userId, status, staffUser, banda = null) {
 
 async function sendRejectAppealDM(user,staffUser){await user.send({content:`❌ Su **POSTULACIÓN** fue rechazada por ${staffUser}.\n\nSi consideras que hubo un error en la revisión o quieres explicar mejor tu caso, puedes apelar el rechazo presionando el botón de abajo.`,components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`apelar_rechazo_${user.id}`).setLabel("Apelar rechazo").setStyle(ButtonStyle.Primary))]}).catch(()=>null);}
 
-async function startFeedback(userId,status,staffId){const apps=loadApps();apps[userId]=apps[userId]||{};apps[userId].feedback={active:true,step:0,status,staffId,answers:[]};saveApps(apps);const user=await client.users.fetch(userId).catch(()=>null);if(!user)return;await user.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"EXLATAM Postulaciones",iconURL:config.logoUrl}).setTitle("⭐ Califica la atención").setDescription("El ticket fue cerrado.\n\nDel **1 al 5**, ¿cómo calificas la atención recibida?").setFooter({text:config.guildName,iconURL:config.logoUrl})]}).catch(()=>null);}
+async function startFeedback(userId,status,staffId){const apps=loadApps();apps[userId]=apps[userId]||{};apps[userId].feedback={active:true,step:0,status,staffId,answers:[]};saveApps(apps);const user=await client.users.fetch(userId).catch(()=>null);if(!user)return;await user.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl}).setTitle("⭐ Califica la atención").setDescription("El ticket fue cerrado.\n\nDel **1 al 5**, ¿cómo calificas la atención recibida?").setFooter({text:config.guildName,iconURL:config.logoUrl})]}).catch(()=>null);}
 
 async function sendFeedbackToStaff(userId){const apps=loadApps();const app=apps[userId];if(!app?.feedback)return;const ch=await client.channels.fetch(config.postulacionesChannelId).catch(()=>null);const user=await client.users.fetch(userId).catch(()=>null);if(!ch?.isTextBased()||!user)return;await ch.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"Feedback de postulación",iconURL:config.logoUrl}).setTitle("⭐ Calificación recibida").addFields({name:"Usuario",value:`<@${userId}>`,inline:true},{name:"Estado",value:app.feedback.status||"No definido",inline:true},{name:"Staff",value:`<@${app.feedback.staffId}>`,inline:true},{name:"Calificación",value:app.feedback.answers[0]||"Sin calificación",inline:false},{name:"Sugerencia / Comentario",value:app.feedback.answers[1]||"Sin comentario",inline:false}).setThumbnail(user.displayAvatarURL({dynamic:true})).setTimestamp()]});await botLog("⭐","Feedback recibido",`<@${userId}> — ${app.feedback.answers[0]||"?"}`,"auto");delete app.feedback;apps[userId]=app;saveApps(apps);}
 
@@ -414,7 +414,7 @@ async function handlePostulacionDM(message) {
 
   if (app.current >= questions.length) {
     app.status="enviada";apps[userId]=app;saveApps(apps);
-    await message.author.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"EXLATAM Postulaciones",iconURL:config.logoUrl}).setTitle("✅ **POSTULACIÓN** enviada").setDescription("Tu **POSTULACIÓN** fue enviada correctamente. Espera respuesta del staff.").setFooter({text:config.guildName,iconURL:config.logoUrl})]}).catch(()=>null);
+    await message.author.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl}).setTitle("✅ **POSTULACIÓN** enviada").setDescription("Tu **POSTULACIÓN** fue enviada correctamente. Espera respuesta del staff.").setFooter({text:config.guildName,iconURL:config.logoUrl})]}).catch(()=>null);
     await sendApplicationToStaff(userId);return;
   }
   apps[userId]=app;saveApps(apps);await askQuestion(userId);

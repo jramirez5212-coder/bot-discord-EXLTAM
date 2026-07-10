@@ -42,7 +42,7 @@ module.exports = {
   CANAL_CMD_ADMIN:       "1516259291777208341",
 
   // ── IMÁGENES ──────────────────────────────────────────────────
-  LOGO_URL:           "https://cdn.discordapp.com/attachments/1469434027671814228/1504707145432699010/logo_ex.png",
+  LOGO_URL: "https://cdn.discordapp.com/attachments/1442748638848876564/1525014565451075694/Diseno_sin_titulo__2_-removebg-preview.png?ex=6a5280bd&is=6a512f3d&hm=466422ef31eed7bc2d88b3b2feea92209608cbb9bfd7e9a5ae64f67a23e1a58e&",
   BANNER_INACTIVIDAD: "https://cdn.discordapp.com/attachments/1495181084248510555/1496964414467866806/image.png?ex=6a0b7040&is=6a0a1ec0&hm=ac47e0454b7b97ac43903770c44b5a893053064666ec43753858cc0514e6fe16&",
 
   // ── VOICE CHANNELS PERMITIDOS (mismos para ROLAS y RUSH) ──────
