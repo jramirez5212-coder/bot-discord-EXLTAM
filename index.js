@@ -383,6 +383,17 @@ client.on("messageCreate", async message => {
     await handleArmarioCommand(message);
     await handleTopArmario(message);
     await handleTopMetio(message);
+
+    if (message.content.trim().toLowerCase() === "!paneltickets") {
+      if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) return message.reply("❌ No tienes permisos.");
+      await message.channel.send(ticketPanel(message.guild.id));
+      return message.reply("✅ Panel enviado.");
+    }
+    if (message.content.trim().toLowerCase() === "!panel") {
+      if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos.").catch(()=>null);
+      await sendAutoPostulacionesPanel("manual", `<@${message.author.id}>`);
+      return message.reply("✅ Panel enviado/actualizado.").catch(()=>null);
+    }
   }
 
   // DMs — postulaciones
