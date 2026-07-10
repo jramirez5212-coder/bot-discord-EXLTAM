@@ -86,7 +86,7 @@ async function updateActividadEmbed(client) {
     const listaFuera = fuera.length  ? fuera.map((e, i) => `${enVoz.length+i+1}. ${e.member}`).join("\n")  : "_Todos están en voz_";
 
     const embed = new EmbedBuilder()
-      .setTitle("📋 Plantilla ROLAS — Presencia")
+      .setTitle("📋 Plantilla Comunidad — Presencia")
       .setColor(0xFFD700)
       .setThumbnail(LOGO_URL)
       .addFields(

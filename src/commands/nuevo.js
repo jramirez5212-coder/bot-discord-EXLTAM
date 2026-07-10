@@ -44,32 +44,15 @@ function buildDMEmbed(member) {
   return new EmbedBuilder()
     .setColor(0xFFD700)
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
-    .setTitle("<:exlatam:1496642022759596245> ¡Bienvenido/a a EXLATAM ROLAS!")
+    .setTitle("¡Bienvenido/a a PARIS.COM!")
     .setDescription(
       `**Antes de continuar, lee atentamente las siguientes instrucciones:**\n\n` +
 
-      `> 📋 __**REGLAS OBLIGATORIAS EX**__\n` +
+      `> 📋 __**REGLAS OBLIGATORIAS**__\n` +
       `- **OBLIGATORIO TENER LA ETIQUETA DEL SERVIDOR.**\n` +
       `- **SIEMPRE QUE JUEGUES ESTAR EN CANAL DE VOZ.** *¡Recuerda somos una comunidad, te puedes quedar a charlar!*\n` +
       `- **PROHIBIDO SACAR DE FORMA EXCESIVA COSAS DEL ARMARIO DE LA BANDA. LO QUE SAQUES LO DEVUELVES.**\n` +
       `- **OBLIGATORIO TENER LA CAMISA DE LA BANDA. LO DEMÁS LO QUE QUIERAS.**\n\n` +
-
-      `> 🎙️ __**ACTIVIDAD DE VOZ**__\n` +
-      `- Debes conectarte diariamente al canal de voz\n` +
-      `- Tu tiempo se registra automáticamente\n` +
-      `- Si no puedes conectarte usa \`!inactivo\` para justificarte\n` +
-      `- Llevas **1 día** sin entrar = advertencia | **6 días** = pierdes el rol\n\n` +
-
-      `> 📢 __**COMANDOS DISPONIBLES**__\n` +
-      `- \`!horas\` → Ver tus horas acumuladas — úsalo en <#${CANAL_CMD_HORAS}>\n` +
-      `- \`!top\` → Ver el ranking semanal — úsalo en <#${CANAL_CMD_HORAS}>\n` +
-      `- \`!inactivo\` → Justificar inactividad — úsalo en <#${CANAL_CMD_INACTIVO}>\n` +
-      `- \`!torneo\` → Crear un torneo — úsalo en <#${CANAL_CMD_TORNEO}>\n` +
-      `- \`!activense\` \`!tormenta\` \`!battle\` \`!drop\` → Notificar eventos a la banda — úsalos en <#${CANAL_CMD_ANUNCIOS}>\n\n` +
-
-      `> 📍 __**CANALES IMPORTANTES**__\n` +
-      `- Los comandos solo funcionan en sus canales específicos\n` +
-      `- Lee los canales de información del servidor\n\n` +
 
       `✅ **Presiona el botón de abajo para confirmar que leíste las instrucciones y recibir tu bienvenida oficial.**`
     )
@@ -304,7 +287,7 @@ async function handleNuevoButton(interaction, client) {
         .setColor(0xFFD700)
         .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
         .setDescription(
-          `# <:exlatam:1496642022759596245> ¡Bienvenido/a a EXLATAM ROLAS <@${ownerId}>! <a:emoji_30:1504932273739530543>\n\n` +
+          `# <:exlatam:1496642022759596245> ¡Bienvenido/a a PARIS.COM <@${ownerId}>! <a:emoji_30:1504932273739530543>\n\n` +
           `<:emoji_27:1504932117233008671> **Ya eres parte oficial de la familia.**\n` +
           `-# <a:emoji_35:1504932489104195714> *¡Mucho éxito y a darle duro!* <a:emoji_35:1504932489104195714>`
         )
@@ -413,7 +396,7 @@ async function handleBandaButton(interaction, client) {
       new ButtonBuilder().setCustomId(`tutorial_claro:${target.id}`).setLabel("✅ Todo claro").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`tutorial_dudas:${target.id}`).setLabel("❓ Tengo dudas").setStyle(ButtonStyle.Danger)
     );
-    const embedTutorial = new EmbedBuilder().setColor(0xFFD700).setTitle("🎬 Tutorial de Discord — EXLATAM")
+    const embedTutorial = new EmbedBuilder().setColor(0xFFD700).setTitle("🎬 Tutorial de Discord — PARIS.COM")
       .setDescription(`${target}, antes de empezar mira el **tutorial completo**.\n📺 **Ve el video completo** para entender canales, comandos y reglas.`).setTimestamp();
     await canalComando.send({ embeds: [embedTutorial], components: [rowTutorial] });
     if (videoAttachment) { try { await canalComando.send({ content: videoAttachment.url }); } catch {} }

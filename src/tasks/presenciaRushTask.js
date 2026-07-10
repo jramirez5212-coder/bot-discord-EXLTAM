@@ -47,7 +47,7 @@ async function updatePresenciaRush(client) {
 
     const embed = new EmbedBuilder()
       .setColor(0xFFD700)
-      .setTitle("📋 Plantilla RUSH — Presencia")
+      .setTitle("📋 Plantilla Bandas — Presencia")
       .setThumbnail(LOGO_URL)
       .addFields(
         { name: `🟢 EN CANAL DE VOZ (${enVoz.length})`,   value: listaVoz,   inline: false },
