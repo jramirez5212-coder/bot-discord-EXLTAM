@@ -101,7 +101,7 @@ async function animarSorteo(canal, participantes, cupo, nombre, client) {
     try {
       await msgAnim.edit({ embeds: [new EmbedBuilder()
         .setTitle(`🎉 ¡RESULTADO DEL SORTEO! — ${nombre}`)
-        .setColor(0x39FF14)
+        .setColor(0xFFD700)
         .setDescription(
           `**Seleccionados (${i+1}/${ganadores.length}):**\n\n${descGanadores}` +
           (i < ganadores.length - 1 ? "\n*⠿ Revelando más...*" : "")
@@ -118,7 +118,7 @@ async function animarSorteo(canal, participantes, cupo, nombre, client) {
   try {
     await msgAnim.edit({ embeds: [new EmbedBuilder()
       .setTitle(`🏆 ¡SORTEO FINALIZADO! — ${nombre}`)
-      .setColor(0x39FF14)
+      .setColor(0xFFD700)
       .setThumbnail(LOGO_URL)
       .setDescription(
         `**¡Felicitaciones a los seleccionados!** 🎉\n\n` +
@@ -164,7 +164,7 @@ async function handleTorneo(message) {
   try { await message.delete(); } catch {}
 
   const embed = new EmbedBuilder()
-    .setColor(0x39FF14).setTitle("🏆 Crear Torneo")
+    .setColor(0xFFD700).setTitle("🏆 Crear Torneo")
     .setDescription("Presiona el botón para configurar el torneo.")
     .setThumbnail(LOGO_URL).setTimestamp();
 
@@ -220,7 +220,7 @@ async function handleTorneoInteraction(interaction, client) {
 
     const embed = new EmbedBuilder()
       .setTitle(`🏆 Torneo: ${nombre}`)
-      .setColor(0x39FF14).setThumbnail(LOGO_URL)
+      .setColor(0xFFD700).setThumbnail(LOGO_URL)
       .setDescription(
         `<@&${ACTIVITY_ROLE_ID}> **¡Se abre el sorteo!**\n\n` +
         `Presiona el botón para entrar al sorteo.\n` +
@@ -262,7 +262,7 @@ async function handleTorneoInteraction(interaction, client) {
         const m     = await canal.messages.fetch(msg.id);
         const embedUpdate = new EmbedBuilder()
           .setTitle(`🏆 Torneo: ${t.nombre}`)
-          .setColor(segundosRestantes <= 10 ? 0xe74c3c : 0x39FF14).setThumbnail(LOGO_URL)
+          .setColor(segundosRestantes <= 10 ? 0xe74c3c : 0xFFD700).setThumbnail(LOGO_URL)
           .setDescription(
             `**¡Se abre el sorteo!**\n\n` +
             `Presiona el botón para entrar al sorteo.\n` +

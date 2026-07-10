@@ -88,7 +88,7 @@ async function handleInactividadDecision(interaction, client) {
 
     if (member) {
       member.send({ embeds: [new EmbedBuilder()
-        .setColor(0x39FF14)
+        .setColor(0xFFD700)
         .setTitle("♻️ Advertencias Restablecidas")
         .setDescription(`Hola **${member.user.username}**,\n\nEl staff te dio otra oportunidad y reinició tus advertencias. ¡Vuelve a entrar pronto! 🎙️`)
         .setTimestamp()] }).catch(() => {});
@@ -96,7 +96,7 @@ async function handleInactividadDecision(interaction, client) {
 
     await interaction.update({
       embeds: [EmbedBuilder.from(interaction.message.embeds[0])
-        .setColor(0x39FF14)
+        .setColor(0xFFD700)
         .setDescription(`♻️ **Advertencias restablecidas** por ${interaction.user}.`)],
       components: [],
     });

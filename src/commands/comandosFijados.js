@@ -52,7 +52,7 @@ async function ensurePinnedCommands(channel) {
   }
 
   const embed = new EmbedBuilder()
-    .setColor(0x39FF14)
+    .setColor(0xFFD700)
     .setTitle(info.titulo)
     .setDescription(info.texto)
     .setFooter({ text: "Comandos disponibles en este canal" });

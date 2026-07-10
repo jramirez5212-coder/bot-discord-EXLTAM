@@ -82,7 +82,7 @@ async function handleTriunfos(message) {
 
   // Embed de repost
   const embed = new EmbedBuilder()
-    .setColor(0x39FF14)
+    .setColor(0xFFD700)
     .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
     .setDescription(contenido || null)
     .setFooter({ text: `Triunfo #${totalUsuario} de ${message.author.tag} • ID: ${message.author.id}` })

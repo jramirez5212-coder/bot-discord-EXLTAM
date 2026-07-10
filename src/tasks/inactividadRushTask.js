@@ -63,7 +63,7 @@ async function checkMedianoche(client) {
       // Log diario simplificado para RUSH (sin horas)
       if (canalLogs) {
         const logEmbed = new EmbedBuilder()
-          .setColor(cumplioHoy ? 0x39FF14 : 0xe74c3c)
+          .setColor(cumplioHoy ? 0xFFD700 : 0xe74c3c)
           .setThumbnail(member.user.displayAvatarURL())
           .setTitle(`${cumplioHoy ? "✅" : "❌"} ${member.user.username} — RUSH`)
           .addFields(

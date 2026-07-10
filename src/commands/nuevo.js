@@ -42,7 +42,7 @@ async function getTutorialVideoAttachment(client) {
 // Mensaje DM completo
 function buildDMEmbed(member) {
   return new EmbedBuilder()
-    .setColor(0x39FF14)
+    .setColor(0xFFD700)
     .setThumbnail(member.user.displayAvatarURL({ dynamic: true }))
     .setTitle("<:exlatam:1496642022759596245> ¡Bienvenido/a a EXLATAM ROLAS!")
     .setDescription(
@@ -116,7 +116,7 @@ async function handleNuevo(message, client) {
     });
 
     const embed = new EmbedBuilder()
-      .setColor(0x3498db)
+      .setColor(0xFFD700)
       .setTitle("📸 Foto de SS requerida")
       .setDescription(
         `${message.author}, sube aquí la **foto de la SS** de ${target} (revisión de cheats).\n\n` +
@@ -184,7 +184,7 @@ async function handleNuevoFotoSS(message, client) {
   );
 
   const embed = new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(0xFFD700)
     .setTitle("📸 Resultado de la SS")
     .setDescription(`Foto recibida para ${target}. ¿Cuál fue el resultado?`)
     .setFooter({ text: `Solicitud: ${solicitudId}` });
@@ -268,7 +268,7 @@ async function handleSSResultButton(interaction, client) {
 
   await interaction.channel.send({
     content: `<@${solicitud.atendioId}>`,
-    embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Limpio — ¿Banda?")
+    embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Limpio — ¿Banda?")
       .setDescription(`**${target}** salió limpio. ¿A qué banda pertenece?`)
       .setTimestamp()],
     components: [rowBanda]
@@ -301,7 +301,7 @@ async function handleNuevoButton(interaction, client) {
     const canal = await client.channels.fetch(CANAL_BIENVENIDA_NUEVO);
     if (canal) {
       const embed = new EmbedBuilder()
-        .setColor(0x39FF14)
+        .setColor(0xFFD700)
         .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
         .setDescription(
           `# <:exlatam:1496642022759596245> ¡Bienvenido/a a EXLATAM ROLAS <@${ownerId}>! <a:emoji_30:1504932273739530543>\n\n` +
@@ -390,7 +390,7 @@ async function handleBandaButton(interaction, client) {
   const ticketPostulacion = guild.channels.cache.find(ch => ch.topic?.includes(`postulacionUser:${target.id}`));
   if (ticketPostulacion) {
     await ticketPostulacion.send({
-      embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle(`✅ Nuevo miembro aprobado — Limpio (${banda})`)
+      embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle(`✅ Nuevo miembro aprobado — Limpio (${banda})`)
         .setDescription(`**Usuario:** ${target}\n**Atendió (!nuevo):** <@${solicitud.atendioId}>\n**Aprobó:** ${interaction.user}\n**Banda:** ${banda}\n\n🎭 Roles asignados: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}`)
         .setTimestamp()]
     });
@@ -399,7 +399,7 @@ async function handleBandaButton(interaction, client) {
   // Plantilla con foto en canal SS
   const { fotoAdjunta, fotoEmbedRef } = solicitud;
   await interaction.channel.send({
-    embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle(`✅ Nuevo miembro aprobado — Limpio (${banda})`)
+    embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle(`✅ Nuevo miembro aprobado — Limpio (${banda})`)
       .setDescription(`**Usuario:** ${target}\n**Atendió (!nuevo):** <@${solicitud.atendioId}>\n**Aprobó:** ${interaction.user}\n**SS realizada por:** ${interaction.user}\n**Banda:** ${banda}\n\n🎭 Roles: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}`)
       .setImage(fotoEmbedRef).setTimestamp()],
     files: fotoAdjunta || []
@@ -413,7 +413,7 @@ async function handleBandaButton(interaction, client) {
       new ButtonBuilder().setCustomId(`tutorial_claro:${target.id}`).setLabel("✅ Todo claro").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`tutorial_dudas:${target.id}`).setLabel("❓ Tengo dudas").setStyle(ButtonStyle.Danger)
     );
-    const embedTutorial = new EmbedBuilder().setColor(0x39FF14).setTitle("🎬 Tutorial de Discord — EXLATAM")
+    const embedTutorial = new EmbedBuilder().setColor(0xFFD700).setTitle("🎬 Tutorial de Discord — EXLATAM")
       .setDescription(`${target}, antes de empezar mira el **tutorial completo**.\n📺 **Ve el video completo** para entender canales, comandos y reglas.`).setTimestamp();
     await canalComando.send({ embeds: [embedTutorial], components: [rowTutorial] });
     if (videoAttachment) { try { await canalComando.send({ content: videoAttachment.url }); } catch {} }

@@ -34,7 +34,7 @@ async function handleTandas(message) {
     tandasActivas.delete(tandasKey);
     try { await message.delete(); } catch {}
     await message.channel.send({ embeds: [new EmbedBuilder()
-      .setColor(0x39FF14)
+      .setColor(0xFFD700)
       .setTitle(`✅ Tanda detenida — ${esRush ? "RUSH" : "ROLAS"}`)
       .setDescription(`${message.author} detuvo la tanda de tormentas.`)
       .setTimestamp()] });
@@ -65,7 +65,7 @@ async function handleTandas(message) {
       await canal.send({
         // sin content
         embeds: [new EmbedBuilder()
-          .setColor(0x3498db)
+          .setColor(0xFFD700)
           .setTitle(`🌪️ TANDA DE TORMENTAS — ${label} ¡ENTRAR! (${num}/${MAX})`)
           .setDescription("**¡¡¡TANDA DE TORMENTAS, ENTREN!!!!!!**\n\n🌪️ ¡Todos al canal de voz AHORA!")
           .setThumbnail(LOGO_URL)
@@ -87,7 +87,7 @@ async function handleTandas(message) {
       tandasActivas.delete(tandasKey);
       try {
         await canal.send({ embeds: [new EmbedBuilder()
-          .setColor(0x39FF14)
+          .setColor(0xFFD700)
           .setTitle(`✅ Tanda finalizada — ${label}`)
           .setDescription(`Se enviaron **${MAX} avisos**. ¡A jugar! 🎮`)
           .setTimestamp()] });

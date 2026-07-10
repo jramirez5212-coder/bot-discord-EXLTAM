@@ -52,7 +52,7 @@ global.isExcused = isExcused;
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("Falta TOKEN en el archivo .env");
 
-const COLOR      = 0x00ff3c;
+const COLOR      = 0xFFD700;
 const SS_ROLE_ID = "1516258951052791818";
 
 const GUILD_VIEJO_ID = "1455775938200473606";
@@ -69,7 +69,7 @@ const config = {
   categoriaRechazadosId: "1516259249246703698",
   botLogsChannelId: "1516259269341745243",
   logoUrl: "https://cdn.discordapp.com/attachments/1442748638848876564/1525014565451075694/Diseno_sin_titulo__2_-removebg-preview.png?ex=6a5280bd&is=6a512f3d&hm=466422ef31eed7bc2d88b3b2feea92209608cbb9bfd7e9a5ae64f67a23e1a58e&",
-  bannerUrl: "https://cdn.discordapp.com/attachments/1442748638848876564/1524958605864861906/ChatGPT_Image_9_jul_2026__08_59_13_p.m.-removebg.png?ex=6a524c9f&is=6a50fb1f&hm=f10320d7bbcc2071d0456fd02527ae9eece00c8e2f90ad4be8c404b9773652e7&"
+  bannerUrl: "https://cdn.discordapp.com/attachments/1442748638848876564/1524950400170594304/FF563A9B-D83F-490F-B23A-6345DC1B7242.png?ex=6a5244fb&is=6a50f37b&hm=b59b48d55d655cba0cac90950868fd048d2cb25784a75dbdbc2a962201666b51&"
 };
 
 // Configuración SOLO de bienvenida + tickets para el servidor VIEJO
@@ -361,7 +361,7 @@ client.on("messageCreate", async message => {
     if (message.channel.id === CANAL_INACTIVO_ROLAS) {
       try {
         const embed = new EmbedBuilder()
-          .setColor(0x39FF14)
+          .setColor(0xFFD700)
           .setAuthor({ name: message.member.displayName, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
           .setDescription(message.content || "_Sin texto_")
           .setTimestamp()

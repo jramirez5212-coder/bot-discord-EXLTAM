@@ -53,7 +53,7 @@ async function handleInactividad(message) {
   try { await message.delete(); } catch {}
 
   const embed = new EmbedBuilder()
-    .setColor(0x39ff3c).setTitle(`📋 Justificación de Inactividad — ${sistema}`)
+    .setColor(0xFFD700).setTitle(`📋 Justificación de Inactividad — ${sistema}`)
     .setDescription("Presiona el botón para llenar el formulario de inactividad.")
     .setImage(BANNER_INACTIVIDAD).setTimestamp();
 
@@ -201,7 +201,7 @@ async function handleInactividadModal(interaction, client) {
     const canal = await client.channels.fetch(canalInact);
     if (canal) {
       const embed = new EmbedBuilder()
-        .setColor(sistema === "RUSH" ? 0xff6b00 : 0x39ff3c)
+        .setColor(sistema === "RUSH" ? 0xff6b00 : 0xFFD700)
         .setTitle(`📋 Justificación de Inactividad — ${sistema}`)
         .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
         .setImage(BANNER_INACTIVIDAD)

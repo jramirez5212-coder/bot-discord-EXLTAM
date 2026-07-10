@@ -46,7 +46,7 @@ async function updatePresenciaRush(client) {
     const listaFuera = fuera.length  ? fuera.map((m, i) => `${enVoz.length+i+1}. ${m}`).join("\n") : "_Todos están activos_";
 
     const embed = new EmbedBuilder()
-      .setColor(0x3498db)
+      .setColor(0xFFD700)
       .setTitle("📋 Plantilla RUSH — Presencia")
       .setThumbnail(LOGO_URL)
       .addFields(

@@ -14,7 +14,7 @@ const EMOJIS = {
 
 const RANKS = {
   F1: { color: 0xffffff, emoji: "⬜" },
-  F4: { color: 0x39FF14, emoji: "🟩" },
+  F4: { color: 0xFFD700, emoji: "🟩" },
   F7: { color: 0xff6b00, emoji: "🟧" },
   F9: { color: 0xe74c3c, emoji: "🟥" },
 };
@@ -72,7 +72,7 @@ function buildPanelEmbedUnificado(EVENTOS, EVENTOS_RUSH) {
   }
 
   return new EmbedBuilder()
-    .setColor(0xFF69B4) // Rosado principal
+    .setColor(0xFFD700) // Rosado principal
     .setTitle("📊 Panel de Eventos — EXLATAM")
     .addFields(
       { name: "🟣 ── ROLAS — AHORA ──",        value: fmtActual(rActual),      inline: false },
@@ -132,7 +132,7 @@ function buildListadoEmbed(EVENTOS, label) {
     return `• **${e.hora}** — ${em} ${e.nombre}${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**`;
   });
   return new EmbedBuilder()
-    .setColor(label === "RUSH" ? 0x3498db : 0xFF69B4)
+    .setColor(label === "RUSH" ? 0xFFD700 : 0xFFD700)
     .setTitle(`📋 Listado de eventos — ${label}`)
     .setDescription(lineas.join("\n"))
     .setTimestamp();
@@ -166,7 +166,7 @@ async function handlePanelButton(interaction, EVENTOS, EVENTOS_RUSH) {
     const emoji   = EMOJIS[proximo.tipo] || "🎮";
 
     const embed = new EmbedBuilder()
-      .setColor(isRush ? 0x3498db : 0xFF69B4)
+      .setColor(isRush ? 0xFFD700 : 0xFFD700)
       .setTitle(`${emoji} Próximo torneo — ${label}`)
       .setDescription(
         `**${proximo.nombre}**\n` +
@@ -227,7 +227,7 @@ async function handleEmbedCreator(message) {
   }
 
   if (sesion.paso === "color") {
-    sesion.datos.color = skip ? 0x39FF14 : parseInt(content.replace("#", ""), 16) || 0x39FF14;
+    sesion.datos.color = skip ? 0xFFD700 : parseInt(content.replace("#", ""), 16) || 0xFFD700;
     sesion.paso = "logo";
     return message.reply(`✅ Color guardado.\n\n**¿Logo/thumbnail?** (URL de imagen, o \`-\` para omitir)`);
   }
@@ -275,7 +275,7 @@ async function handleAnuncioCmd(message) {
   if (!texto) return message.reply("❌ Uso: `!anuncio [texto]`");
   const canal = await message.client.channels.fetch("1516259340431130715").catch(() => null);
   if (!canal) return message.reply("❌ No se encontró el canal de anuncios.");
-  const embed = new EmbedBuilder().setColor(0x39FF14).setTitle("📢 ANUNCIO").setDescription(texto).setFooter({ text: `Publicado por ${message.author.tag}` }).setTimestamp();
+  const embed = new EmbedBuilder().setColor(0xFFD700).setTitle("📢 ANUNCIO").setDescription(texto).setFooter({ text: `Publicado por ${message.author.tag}` }).setTimestamp();
   await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}>`, embeds: [embed] });
   await message.reply("✅ Anuncio enviado.");
 }
@@ -329,7 +329,7 @@ async function handleEncuesta(message) {
     const canal = message.mentions.channels.first();
     if (!canal) return message.reply("❌ Menciona el canal con #");
     encuestaSesiones.delete(message.author.id);
-    const embed = new EmbedBuilder().setColor(0x3498db).setTitle(`📊 ${sesion.datos.titulo}`).setTimestamp().setFooter({ text: `Encuesta por ${message.author.tag}` });
+    const embed = new EmbedBuilder().setColor(0xFFD700).setTitle(`📊 ${sesion.datos.titulo}`).setTimestamp().setFooter({ text: `Encuesta por ${message.author.tag}` });
     if (sesion.datos.descripcion) embed.setDescription(sesion.datos.descripcion);
     try {
       const msg = await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}>`, embeds: [embed] });

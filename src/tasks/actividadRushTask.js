@@ -91,7 +91,7 @@ async function updateActividadEmbed(client) {
 
     const embed = new EmbedBuilder()
       .setTitle("📊 Actividad de Miembros RUSH — Voz / Radio")
-      .setColor(0x39FF14)
+      .setColor(0xFFD700)
       .setThumbnail(LOGO_URL)
       .setDescription(desc.slice(0, 4000))
       .setFooter({ text: "🔴 en voz ahora • Colombia (UTC-5)" })
@@ -156,7 +156,7 @@ async function updateTopEmbed(client) {
 
     const embed = new EmbedBuilder()
       .setTitle(`🏆 Top ${TOP_SIZE} — Semana en Curso`)
-      .setColor(0x39FF14)
+      .setColor(0xFFD700)
       .setThumbnail(LOGO_URL)
       .setDescription(topText)
       .setFooter({ text: "🔴 en voz ahora • Se actualiza cada 30s" })

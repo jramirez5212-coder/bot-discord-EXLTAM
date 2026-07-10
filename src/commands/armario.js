@@ -225,7 +225,7 @@ async function handleArmarioCommand(message) {
     });
 
   const embed = new EmbedBuilder()
-    .setColor(0x39FF14)
+    .setColor(0xFFD700)
     .setTitle(`🔫 Armario de ${target.user.tag}`)
     .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
     .setDescription(lineasArmas.join("\n\n") || "Sin registros de armas.")
@@ -302,7 +302,7 @@ async function handleTopMetio(message) {
   );
 
   const embed = new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(0xFFD700)
     .setTitle("📦 Top Armario — Items Metidos")
     .setDescription(lineas.join("\n"))
     .setTimestamp();
@@ -329,7 +329,7 @@ async function handleArmarioAlertaButton(interaction) {
   try {
     await interaction.update({
       embeds: [EmbedBuilder.from(interaction.message.embeds[0])
-        .setColor(isOk ? 0x39FF14 : 0xe74c3c)
+        .setColor(isOk ? 0xFFD700 : 0xe74c3c)
         .setDescription(
           isOk
             ? `✅ **Marcado como normal** por ${interaction.user}.\n<@${userId}> — ${item}`

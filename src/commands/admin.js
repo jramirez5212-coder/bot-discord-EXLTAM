@@ -56,7 +56,7 @@ async function handleAdmin(message, client) {
     if (!ud.days[hoy]) ud.days[hoy] = { totalMs: 0 };
     ud.days[hoy].totalMs += ms;
     saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Tiempo agregado")
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Tiempo agregado")
       .setDescription(`Se agregaron **${msToHours(ms)}** a ${target}\n📆 Semana: \`${msToHours(ud.weekMs)}\`\n🏆 Total: \`${msToHours(ud.totalMs)}\``)
       .setTimestamp()] });
   }
@@ -86,7 +86,7 @@ async function handleAdmin(message, client) {
     ud.totalMs = ms; ud.weekMs = ms;
     if (!ud.days[hoy]) ud.days[hoy] = { totalMs: 0 };
     ud.days[hoy].totalMs = ms; saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Horas establecidas")
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Horas establecidas")
       .setDescription(`Horas de ${target} ajustadas a **${msToHours(ms)}**`).setTimestamp()] });
   }
 
@@ -120,7 +120,7 @@ async function handleAdmin(message, client) {
     }
     saveData(data);
     client.emit("updateActividadEmbed");
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Semana reseteada")
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Semana reseteada")
       .setDescription(`Se resetearon las horas semanales de **${count}** usuarios.`).setTimestamp()] });
   }
 
@@ -141,7 +141,7 @@ async function handleAdmin(message, client) {
       synced++;
     }
     saveData(data); client.emit("updateActividadEmbed");
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Voz sincronizada")
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Voz sincronizada")
       .setDescription(`Se sincronizaron **${synced}** sesiones activas.`).setTimestamp()] });
   }
 
@@ -153,7 +153,7 @@ async function handleAdmin(message, client) {
       const mins = Math.floor((ahora - ts) / 60000);
       desc += `<@${id}> — \`${mins}m\` en sesión\n`;
     }
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14)
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700)
       .setTitle(`📊 Sesiones activas (${activeSessions.size})`)
       .setDescription(desc || "*No hay sesiones activas.*").setTimestamp()] });
   }
@@ -167,7 +167,7 @@ async function handleAdmin(message, client) {
         desc += `<@${id}> — sesión guardada hace \`${mins}m\`\n`;
       }
     }
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14)
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700)
       .setTitle("📋 Sesiones en JSON").setDescription(desc || "*Sin sesiones.*").setTimestamp()] });
   }
 
@@ -190,7 +190,7 @@ async function handleAdmin(message, client) {
                           .map(r => `<@&${r.id}>`).slice(0,10).join(", ") || "*Sin roles*";
 
     const embed = new EmbedBuilder()
-      .setColor(0x39FF14)
+      .setColor(0xFFD700)
       .setTitle(`📋 Info — ${target.user.tag}`)
       .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
       .addFields(
@@ -221,7 +221,7 @@ async function handleAdmin(message, client) {
       return message.reply("❌ Uso: `!setadv @usuario 0-3`");
     const ud = getUser(data, target.id);
     ud.advertencias = num; saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Advertencias actualizadas")
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Advertencias actualizadas")
       .setDescription(`${target} ahora tiene **${num}/3** advertencias.`).setTimestamp()] });
   }
 
@@ -231,7 +231,7 @@ async function handleAdmin(message, client) {
     if (!target) return message.reply("❌ Uso: `!clearadv @usuario`");
     const ud = getUser(data, target.id);
     ud.advertencias = 0; saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Advertencias borradas")
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Advertencias borradas")
       .setDescription(`Se borraron las advertencias de ${target}.`).setTimestamp()] });
   }
 
@@ -253,7 +253,7 @@ async function handleAdmin(message, client) {
       desc += `${medals[i]} **${member.user.tag}**${recomendacion}\n┣ Semana: \`${msToHours(weekMs)}\` | Total: \`${msToHours(totalMs)}\`\n\n`;
     });
 
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14)
+    return message.reply({ embeds: [new EmbedBuilder().setColor(0xFFD700)
       .setTitle("📊 Top 10 más activos")
       .setDescription(desc || "*Sin datos.*")
       .setFooter({ text: "🔺 Top 3 son candidatos a ascenso de rango" })
@@ -490,7 +490,7 @@ async function handleChiteadoButton(interaction, client) {
   await interaction.channel.send({
     content: `<@&${SS_ROLE_ID}>`,
     embeds: [new EmbedBuilder()
-      .setColor(0x39FF14)
+      .setColor(0xFFD700)
       .setTitle("✅ Formateo confirmado")
       .setDescription(
         `<@${ownerId}> confirmó que ya formateó su PC.\n\n` +

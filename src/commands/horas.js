@@ -56,7 +56,7 @@ async function handleHoras(message, client) {
 
     const embed = new EmbedBuilder()
       .setTitle(`${estadoEmoji} ${target.user.username} — ${estadoTexto}`)
-      .setColor(estaEnVoz ? 0x39FF14 : tieneError ? 0xf1c40f : msHoy > 0 ? 0x39FF14 : 0xe74c3c)
+      .setColor(estaEnVoz ? 0xFFD700 : tieneError ? 0xf1c40f : msHoy > 0 ? 0xFFD700 : 0xe74c3c)
       .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
       .addFields(
         { name: "📅 Últimos 7 días",  value: diasText || "*Sin registros*" },
@@ -104,7 +104,7 @@ async function handleHoras(message, client) {
 
     const embed = new EmbedBuilder()
       .setTitle(`🏆 Top ${TOP_SIZE} — Semana Actual`)
-      .setColor(0x39FF14)
+      .setColor(0xFFD700)
       .setThumbnail(LOGO_URL)
       .setDescription(topText || "*Sin datos aún.*")
       .setFooter({ text: "🟢 En voz ahora • 🔴 Inactivo" })

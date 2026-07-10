@@ -6,15 +6,15 @@ const cooldowns   = new Map();
 const COOLDOWN_MS = 60 * 1000;
 
 const COMANDOS_ROLAS = {
-  "!activense": { titulo:"⚡ ¡ACTÍVENSE — ROLAS!",          color:0x39FF14, desc:"¡Vengan al canal de voz ahora!" },
-  "!tormenta":  { titulo:"🌪️ ¡TORMENTA EN 1 MIN — ROLAS!", color:0x3498db, desc:"¡Prepárense, tormenta en 1 minuto!" },
+  "!activense": { titulo:"⚡ ¡ACTÍVENSE — ROLAS!",          color:0xFFD700, desc:"¡Vengan al canal de voz ahora!" },
+  "!tormenta":  { titulo:"🌪️ ¡TORMENTA EN 1 MIN — ROLAS!", color:0xFFD700, desc:"¡Prepárense, tormenta en 1 minuto!" },
   "!battle":    { titulo:"⚔️ ¡BATTLE ROYAL — ROLAS!",       color:0xe74c3c, desc:"¡Battle Royal comenzando!" },
   "!drop":      { titulo:"📦 ¡DROP — ROLAS!",               color:0xf39c12, desc:"¡Drop cayendo en 1 minuto!" },
 };
 
 const COMANDOS_RUSH = {
-  "!activenserush": { titulo:"⚡ ¡ACTÍVENSE — RUSH!",          color:0x39FF14, desc:"¡Vengan al canal de voz ahora!" },
-  "!tormentarush":  { titulo:"🌪️ ¡TORMENTA EN 1 MIN — RUSH!", color:0x3498db, desc:"¡Prepárense, tormenta en 1 minuto!" },
+  "!activenserush": { titulo:"⚡ ¡ACTÍVENSE — RUSH!",          color:0xFFD700, desc:"¡Vengan al canal de voz ahora!" },
+  "!tormentarush":  { titulo:"🌪️ ¡TORMENTA EN 1 MIN — RUSH!", color:0xFFD700, desc:"¡Prepárense, tormenta en 1 minuto!" },
   "!battlerush":    { titulo:"⚔️ ¡BATTLE ROYAL — RUSH!",       color:0xe74c3c, desc:"¡Battle Royal comenzando!" },
   "!droprush":      { titulo:"📦 ¡DROP — RUSH!",               color:0xf39c12, desc:"¡Drop cayendo en 1 minuto!" },
 };

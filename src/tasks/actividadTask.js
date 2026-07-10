@@ -87,7 +87,7 @@ async function updateActividadEmbed(client) {
 
     const embed = new EmbedBuilder()
       .setTitle("📋 Plantilla ROLAS — Presencia")
-      .setColor(0xFF69B4)
+      .setColor(0xFFD700)
       .setThumbnail(LOGO_URL)
       .addFields(
         { name: `🟢 EN CANAL DE VOZ (${enVoz.length})`,  value: listaVoz.slice(0,1000),   inline: false },

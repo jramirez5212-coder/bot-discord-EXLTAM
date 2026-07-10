@@ -56,7 +56,7 @@ async function checkMedianoche(client) {
       // Log diario en #logs
       if (canalLogs) {
         const logEmbed = new EmbedBuilder()
-          .setColor(cumplioHoy ? 0x39FF14 : 0xe74c3c)
+          .setColor(cumplioHoy ? 0xFFD700 : 0xe74c3c)
           .setThumbnail(member.user.displayAvatarURL())
           .setTitle(`${cumplioHoy ? "✅" : "❌"} ${member.user.username}`)
           .addFields(

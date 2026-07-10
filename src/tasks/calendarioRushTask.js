@@ -57,7 +57,7 @@ async function lanzarTorneoNormal(evento, client) {
   if (!canal) return;
 
   const embed = new EmbedBuilder()
-    .setColor(0x3498db)
+    .setColor(0xFFD700)
     .setTitle(`🏆 ${evento.nombre} — RUSH`)
     .setDescription(
       `🗺️ **El spawn ya está en barrio — ¡métanse!**\n\n` +
@@ -114,7 +114,7 @@ async function lanzarTormenta(client) {
       await canal.send({
         content: rolMention,
         embeds: [new EmbedBuilder()
-          .setColor(0x3498db)
+          .setColor(0xFFD700)
           .setTitle(`🌪️ TANDA DE TORMENTAS — ${label} ¡ENTRAR! (${enviados}/${MAX})`)
           .setDescription("**¡¡¡TANDA DE TORMENTAS, ENTREN!!!!!!**\n\n🌪️ ¡Todos al canal de voz AHORA!")
           .setFooter({ text: `Aviso ${enviados} de ${MAX} • Próximo en 5 min` })
@@ -132,7 +132,7 @@ async function lanzarTormenta(client) {
       clearInterval(interval);
       try {
         await canal.send({ embeds: [new EmbedBuilder()
-          .setColor(0x39FF14)
+          .setColor(0xFFD700)
           .setTitle(`✅ Tanda finalizada — ${label}`)
           .setDescription(`Se enviaron **${MAX} avisos**. ¡A jugar! 🎮`)
           .setTimestamp()] });

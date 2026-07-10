@@ -66,7 +66,7 @@ async function handleMigrarRoles(message, client) {
     }
 
     const embed = new EmbedBuilder()
-      .setColor(0x39FF14)
+      .setColor(0xFFD700)
       .setTitle("✅ Migración de roles completada")
       .addFields(
         { name: "👥 Miembros migrados", value: `${migrados}`, inline: true },
