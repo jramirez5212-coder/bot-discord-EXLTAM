@@ -1,395 +1,343 @@
-const {
-  EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
-  ActionRowBuilder, ButtonBuilder, ButtonStyle
-} = require("discord.js");
-const { loadData, saveData, getUser } = require("../utils/dataManager");
-const { ACTIVITY_ROLE_ID, LOGO_URL, CANAL_CMD_TORNEO, GUILD_ID } = require("../config");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require("discord.js");
+const { CANAL_CMD_TORNEO } = require('./config');
 
-const ROL_TORNEO_ID  = "1504721382368481331";
-const COOLDOWN_MS    = 60 * 1000;
-const INSCRIPCION_MS = 30 * 1000; // 30 segundos para inscribirse
-const cooldowns      = new Map();
-const torneosActivos = new Map();
+const CANAL_PANEL_EVENTOS = "1516259370994761781";
 
-// Guardar/limpiar rol torneo en JSON
-function guardarRolTorneo(userId, expira) {
-  const data = loadData();
-  const ud   = getUser(data, userId);
-  ud.torneoRolExpira = expira;
-  saveData(data);
+const EMOJIS = {
+  torneo:      "🏆",
+  tormenta:    "🌪️",
+  battle:      "💥",
+  drop:        "🎁",
+  mega_torneo: "🔥",
+  mega_battle: "⚔️",
+};
+
+const RANKS = {
+  F1: { color: 0xffffff, emoji: "⬜" },
+  F4: { color: 0xFFD700, emoji: "🟩" },
+  F7: { color: 0xff6b00, emoji: "🟧" },
+  F9: { color: 0xe74c3c, emoji: "🟥" },
+};
+
+let panelMessageId = null;
+let panelRushMessageId = null;
+
+function diffEnPalabras(diffMin) {
+  if (diffMin < 1)   return "ahora mismo";
+  if (diffMin < 60)  return `en ${diffMin} minuto${diffMin === 1 ? "" : "s"}`;
+  const horas = Math.floor(diffMin / 60);
+  const mins  = diffMin % 60;
+  if (mins === 0) return `en ${horas} hora${horas === 1 ? "" : "s"}`;
+  return `en ${horas}h ${mins}min`;
 }
-function limpiarRolTorneo(userId) {
-  const data = loadData();
-  if (data[userId]) { delete data[userId].torneoRolExpira; saveData(data); }
+
+// ── PANEL DE EVENTOS UNIFICADO ────────────────────────────────────────────────
+function getEventoActualYProximos(EVENTOS) {
+  const ahora = (() => {
+    const c = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
+    return c.getHours() * 60 + c.getMinutes();
+  })();
+  function horaAMin(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
+  const ordenados = [...EVENTOS].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
+
+  let actual = null, actualIdx = -1;
+  for (let i = ordenados.length - 1; i >= 0; i--) {
+    if (horaAMin(ordenados[i].hora) <= ahora) { actual = ordenados[i]; actualIdx = i; break; }
+  }
+  if (!actual) { actual = ordenados[ordenados.length - 1]; actualIdx = ordenados.length - 1; }
+
+  const proximos = [];
+  for (let i = 1; i <= 2; i++) {
+    const idx = (actualIdx + i) % ordenados.length;
+    const e   = ordenados[idx];
+    const diffMin = (horaAMin(e.hora) - ahora + 1440) % 1440;
+    proximos.push({ ...e, diffMin });
+  }
+  return { actual, proximos };
 }
 
-// Recuperar roles pendientes al reiniciar
-async function recoverTorneoRoles(client) {
+function buildPanelEmbedUnificado(EVENTOS, EVENTOS_RUSH) {
+  const { actual: rActual, proximos: rProximos } = getEventoActualYProximos(EVENTOS);
+  const { actual: rushActual, proximos: rushProximos } = getEventoActualYProximos(EVENTOS_RUSH);
+
+  function fmtActual(e) {
+    const em = EMOJIS[e.tipo]?.emoji || "🎮";
+    return `${e.hora} — ${em} **${e.nombre}**${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**\n🟢 **EN CURSO**`;
+  }
+  function fmtProximos(proximos) {
+    return proximos.map(e => {
+      const em = EMOJIS[e.tipo]?.emoji || "🎮";
+      return `${e.hora} — ${em} **${e.nombre}**${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**\n⏳ ${diffEnPalabras(e.diffMin)}`;
+    }).join("\n\n");
+  }
+
+  return new EmbedBuilder()
+    .setColor(0xFFD700) // Rosado principal
+    .setTitle("📊 Panel de Eventos — EXLATAM")
+    .addFields(
+      { name: "🟣 ── ROLAS — AHORA ──",        value: fmtActual(rActual),      inline: false },
+      { name: "📅 ── ROLAS — PRÓXIMOS ──",      value: fmtProximos(rProximos),  inline: false },
+      { name: "\u200b",                          value: "\u200b",                inline: false }, // separador
+      { name: "🔵 ── RUSH — AHORA ──",          value: fmtActual(rushActual),   inline: false },
+      { name: "📅 ── RUSH — PRÓXIMOS ──",       value: fmtProximos(rushProximos), inline: false },
+    )
+    .setFooter({ text: "Sistema de Eventos — EXLATAM | Última actualización" })
+    .setTimestamp();
+}
+
+let panelMsgId = null;
+
+async function initPanelEventos(client, EVENTOS, EVENTOS_RUSH) {
+  await actualizarPanel(client, EVENTOS, EVENTOS_RUSH);
+  setInterval(() => actualizarPanel(client, EVENTOS, EVENTOS_RUSH), 60 * 1000);
+}
+
+async function actualizarPanel(client, EVENTOS, EVENTOS_RUSH) {
   try {
-    const data  = loadData();
-    const guild = await client.guilds.fetch(GUILD_ID);
-    await guild.members.fetch();
-    const ahora = Date.now();
-    for (const userId in data) {
-      const ud = data[userId];
-      if (!ud.torneoRolExpira) continue;
-      if (ud.torneoRolExpira <= ahora) {
-        try { const m = guild.members.cache.get(userId); if (m) await m.roles.remove(ROL_TORNEO_ID); } catch {}
-        delete ud.torneoRolExpira;
-      } else {
-        const msRestante = ud.torneoRolExpira - ahora;
-        setTimeout(async () => {
-          try { const m = guild.members.cache.get(userId); if (m) await m.roles.remove(ROL_TORNEO_ID); } catch {}
-          limpiarRolTorneo(userId);
-        }, msRestante);
-      }
-    }
-    saveData(data);
-  } catch(e) { console.error("[TORNEO] Error recuperando roles:", e.message); }
-}
+    const canal = await client.channels.fetch(CANAL_PANEL_EVENTOS);
+    if (!canal) return;
 
-// Animación del sorteo
-async function animarSorteo(canal, participantes, cupo, nombre, client) {
-  const seleccionados = [];
-  const pool = [...participantes];
-
-  // Mezclar pool aleatoriamente
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-
-  // Seleccionar los ganadores
-  const ganadores = pool.slice(0, Math.min(cupo, pool.length));
-
-  // Embed animación inicial
-  const msgAnim = await canal.send({
-    embeds: [new EmbedBuilder()
-      .setTitle("🎰 ¡SORTEANDO PARTICIPANTES!")
-      .setColor(0xf1c40f)
-      .setDescription("```\n⠿ Mezclando participantes... ⠿\n```")
-      .setThumbnail(LOGO_URL)
-      .setTimestamp()]
-  });
-
-  // Animación — 6 frames de 1 segundo
-  const frames = ["⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧","⠇","⠏"];
-  for (let i = 0; i < 8; i++) {
-    await new Promise(r => setTimeout(r, 800));
-    // Mostrar nombres aleatorios en cada frame
-    const shuffled = [...participantes].sort(() => Math.random() - 0.5).slice(0, 5);
-    const preview  = shuffled.map(id => `<@${id}>`).join(" • ");
-    try {
-      await msgAnim.edit({ embeds: [new EmbedBuilder()
-        .setTitle(`🎰 SORTEANDO... ${frames[i % frames.length]}`)
-        .setColor(0xf1c40f)
-        .setDescription(`**Participantes en la ruleta:** ${participantes.length}\n\n${preview}...`)
-        .setThumbnail(LOGO_URL)
-        .setTimestamp()] });
-    } catch {}
-  }
-
-  // Revelar ganadores uno por uno
-  await new Promise(r => setTimeout(r, 1000));
-  let descGanadores = "";
-  const medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟",
-                  "1️⃣1️⃣","1️⃣2️⃣","1️⃣3️⃣","1️⃣4️⃣","1️⃣5️⃣","1️⃣6️⃣","1️⃣7️⃣","1️⃣8️⃣","1️⃣9️⃣","2️⃣0️⃣"];
-
-  for (let i = 0; i < ganadores.length; i++) {
-    await new Promise(r => setTimeout(r, 700));
-    descGanadores += `${medals[i]} <@${ganadores[i]}>\n`;
-    try {
-      await msgAnim.edit({ embeds: [new EmbedBuilder()
-        .setTitle(`🎉 ¡RESULTADO DEL SORTEO! — ${nombre}`)
-        .setColor(0x39FF14)
-        .setDescription(
-          `**Seleccionados (${i+1}/${ganadores.length}):**\n\n${descGanadores}` +
-          (i < ganadores.length - 1 ? "\n*⠿ Revelando más...*" : "")
-        )
-        .setThumbnail(LOGO_URL)
-        .setTimestamp()] });
-    } catch {}
-  }
-
-  // Embed final completo
-  await new Promise(r => setTimeout(r, 1000));
-  const noSeleccionados = pool.slice(cupo).map(id => `<@${id}>`).join(", ") || "*Nadie*";
-
-  try {
-    await msgAnim.edit({ embeds: [new EmbedBuilder()
-      .setTitle(`🏆 ¡SORTEO FINALIZADO! — ${nombre}`)
-      .setColor(0x39FF14)
-      .setThumbnail(LOGO_URL)
-      .setDescription(
-        `**¡Felicitaciones a los seleccionados!** 🎉\n\n` +
-        `${descGanadores}\n` +
-        `**Total participantes:** ${participantes.length}\n` +
-        `**Cupo:** ${ganadores.length}`
-      )
-      .addFields(
-        ganadores.length < participantes.length
-          ? [{ name: "😔 No seleccionados", value: noSeleccionados.slice(0, 1000), inline: false }]
-          : []
-      )
-      .setFooter({ text: "¡Buena suerte a todos! 🎮" })
-      .setTimestamp()] });
-  } catch {}
-
-  return ganadores;
-}
-
-async function handleTorneo(message) {
-  if (message.author.bot) return;
-  if (message.content.trim().toLowerCase() !== "!torneo") return;
-
-  if (!message.member.roles.cache.has(ACTIVITY_ROLE_ID))
-    return message.reply("❌ No tienes permiso para usar este comando.");
-
-  if (message.channel.id !== CANAL_CMD_TORNEO) {
-    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_TORNEO}>`);
-    setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
-    return;
-  }
-
-  const key    = `torneo:${message.author.id}`;
-  const ultimo = cooldowns.get(key);
-  if (ultimo && Date.now() - ultimo < COOLDOWN_MS) {
-    const segs  = Math.ceil((COOLDOWN_MS - (Date.now() - ultimo)) / 1000);
-    const aviso = await message.reply(`⏳ Espera **${segs} segundos**.`);
-    setTimeout(() => { try { aviso.delete(); } catch {} }, 5000);
-    try { await message.delete(); } catch {}
-    return;
-  }
-  cooldowns.set(key, Date.now());
-  try { await message.delete(); } catch {}
-
-  const embed = new EmbedBuilder()
-    .setColor(0x39FF14).setTitle("🏆 Crear Torneo")
-    .setDescription("Presiona el botón para configurar el torneo.")
-    .setThumbnail(LOGO_URL).setTimestamp();
-
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`btn_torneo:${message.author.id}`)
-      .setLabel("Crear torneo").setStyle(ButtonStyle.Primary).setEmoji("🏆")
-  );
-
-  const msg = await message.channel.send({ embeds: [embed], components: [row] });
-  setTimeout(async () => { try { await msg.delete(); } catch {} }, 2 * 60 * 1000);
-}
-
-async function handleTorneoInteraction(interaction, client) {
-  if (!interaction.isButton() && !interaction.isModalSubmit()) return;
-
-  // Botón abrir modal
-  if (interaction.isButton() && interaction.customId.startsWith("btn_torneo:")) {
-    const ownerId = interaction.customId.split(":")[1];
-    if (interaction.user.id !== ownerId)
-      return interaction.reply({ content: "❌ Este botón no es para ti.", ephemeral: true });
-
-    const modal = new ModalBuilder().setCustomId("modal_torneo").setTitle("🏆 Crear Torneo");
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("nombre").setLabel("Nombre del torneo")
-          .setStyle(TextInputStyle.Short).setPlaceholder("Ej: 5v5 Drift").setRequired(true)
-      ),
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder().setCustomId("cupo").setLabel("¿Cuántos jugadores se seleccionan?")
-          .setStyle(TextInputStyle.Short).setPlaceholder("Ej: 10").setRequired(true)
-      )
-    );
-    return interaction.showModal(modal);
-  }
-
-  // Modal submit
-  if (interaction.isModalSubmit() && interaction.customId === "modal_torneo") {
-    const nombre = interaction.fields.getTextInputValue("nombre");
-    const cupo   = parseInt(interaction.fields.getTextInputValue("cupo"));
-    if (isNaN(cupo) || cupo < 2 || cupo > 50)
-      return interaction.reply({ content: "❌ El cupo debe ser entre 2 y 50.", ephemeral: true });
-
-    try { await interaction.message?.delete(); } catch {}
-
-    const torneo = {
-      cupo, nombre,
-      inscritos:   [],
-      channelId:   interaction.channelId,
-      organizador: interaction.user.id,
-      startTime:   Date.now(),
-    };
-
-    const embed = new EmbedBuilder()
-      .setTitle(`🏆 Torneo: ${nombre}`)
-      .setColor(0x39FF14).setThumbnail(LOGO_URL)
-      .setDescription(
-        `<@&${ACTIVITY_ROLE_ID}> **¡Se abre el sorteo!**\n\n` +
-        `Presiona el botón para entrar al sorteo.\n` +
-        `En **30 segundos** se seleccionarán **${cupo} jugadores** aleatoriamente.`
-      )
-      .addFields(
-        { name: "🎮 Nombre",      value: nombre,               inline: true },
-        { name: "🎰 Cupo sorteo", value: `${cupo} jugadores`,  inline: true },
-        { name: "👤 Organizador", value: `${interaction.user}`, inline: true },
-        { name: "⏳ Cierra en",   value: "30 segundos",         inline: true },
-        { name: "✋ Inscritos",   value: "0",                   inline: true },
-      )
-      .setFooter({ text: "¡Todos tienen la misma oportunidad!" })
-      .setTimestamp();
+    const embed = buildPanelEmbedUnificado(EVENTOS, EVENTOS_RUSH || EVENTOS);
 
     const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("unirse_torneo")
-        .setLabel("¡Quiero jugar! (0)").setStyle(ButtonStyle.Success).setEmoji("🎮")
+      new ButtonBuilder().setCustomId("panel_ver_todos").setLabel("Eventos ROLAS").setEmoji("🟣").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("panel_ver_todos_rush").setLabel("Eventos RUSH").setEmoji("🔵").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("panel_proximo_torneo").setLabel("Próximo ROLAS").setEmoji("🏆").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("panel_proximo_torneo_rush").setLabel("Próximo RUSH").setEmoji("🏆").setStyle(ButtonStyle.Primary)
     );
 
-    await interaction.reply({
-      content: `<@&${ACTIVITY_ROLE_ID}> 🏆 **¡Torneo ${nombre} — Entra al sorteo!**`,
-      embeds:  [embed],
-      components: [row]
-    });
-
-    const msg = await interaction.fetchReply();
-    torneo.messageId = msg.id;
-    torneosActivos.set(msg.id, torneo);
-
-    // Countdown — actualizar cada 5 segundos
-    let segundosRestantes = 30;
-    const countdown = setInterval(async () => {
-      segundosRestantes -= 5;
-      const t = torneosActivos.get(msg.id);
-      if (!t || segundosRestantes <= 0) { clearInterval(countdown); return; }
+    if (panelMsgId) {
       try {
-        const canal = await client.channels.fetch(t.channelId);
-        const m     = await canal.messages.fetch(msg.id);
-        const embedUpdate = new EmbedBuilder()
-          .setTitle(`🏆 Torneo: ${t.nombre}`)
-          .setColor(segundosRestantes <= 10 ? 0xe74c3c : 0x39FF14).setThumbnail(LOGO_URL)
-          .setDescription(
-            `**¡Se abre el sorteo!**\n\n` +
-            `Presiona el botón para entrar al sorteo.\n` +
-            `En **${segundosRestantes} segundos** se seleccionarán **${t.cupo} jugadores** aleatoriamente.`
-          )
-          .addFields(
-            { name: "🎮 Nombre",      value: t.nombre,              inline: true },
-            { name: "🎰 Cupo sorteo", value: `${t.cupo} jugadores`, inline: true },
-            { name: "👤 Organizador", value: `<@${t.organizador}>`, inline: true },
-            { name: "⏳ Cierra en",   value: `${segundosRestantes} segundos`, inline: true },
-            { name: "✋ Inscritos",   value: `${t.inscritos.length}`, inline: true },
-          )
-          .setFooter({ text: "¡Todos tienen la misma oportunidad!" })
-          .setTimestamp();
-        const rowUpdate = new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId("unirse_torneo")
-            .setLabel(`¡Quiero jugar! (${t.inscritos.length})`)
-            .setStyle(segundosRestantes <= 10 ? ButtonStyle.Danger : ButtonStyle.Success)
-            .setEmoji("🎮")
-        );
-        await m.edit({ embeds: [embedUpdate], components: [rowUpdate] });
-      } catch { clearInterval(countdown); }
-    }, 5000);
-
-    // Después de 30 segundos — hacer el sorteo
-    setTimeout(async () => {
-      clearInterval(countdown);
-      const t = torneosActivos.get(msg.id);
-      if (!t) return;
-      torneosActivos.delete(msg.id);
-
-      try {
-        // Cerrar botón
-        const canal = await client.channels.fetch(t.channelId);
-        const m     = await canal.messages.fetch(msg.id);
-        await m.edit({
-          embeds: [new EmbedBuilder()
-            .setTitle(`🏆 Torneo: ${t.nombre} — ¡Inscripciones cerradas!`)
-            .setColor(0x95a5a6).setThumbnail(LOGO_URL)
-            .setDescription(`🔒 Las inscripciones cerraron.\n\n**${t.inscritos.length}** participantes entraron al sorteo.`)
-            .setTimestamp()],
-          components: [new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId("unirse_torneo")
-              .setLabel(`Cerrado (${t.inscritos.length} inscritos)`)
-              .setStyle(ButtonStyle.Secondary).setEmoji("🔒").setDisabled(true)
-          )]
-        });
-      } catch {}
-
-      if (t.inscritos.length === 0) {
-        try {
-          const canal = await client.channels.fetch(t.channelId);
-          await canal.send({ embeds: [new EmbedBuilder()
-            .setTitle(`😔 Torneo ${t.nombre} — Sin participantes`)
-            .setColor(0xe74c3c).setDescription("Nadie se inscribió al torneo.")
-            .setTimestamp()] });
-        } catch {}
+        const msg = await canal.messages.fetch(panelMsgId);
+        await msg.edit({ embeds: [embed], components: [row] });
         return;
-      }
-
-      // Animar sorteo
-      try {
-        const canal    = await client.channels.fetch(t.channelId);
-        const ganadores = await animarSorteo(canal, t.inscritos, t.cupo, t.nombre, client);
-
-        // Dar rol a los seleccionados
-        const guild = await client.guilds.fetch(GUILD_ID);
-        const expira = Date.now() + 10 * 60 * 1000;
-        for (const uid of ganadores) {
-          try {
-            const member = await guild.members.fetch(uid);
-            await member.roles.add(ROL_TORNEO_ID);
-            guardarRolTorneo(uid, expira);
-            setTimeout(async () => {
-              try { await member.roles.remove(ROL_TORNEO_ID); } catch {}
-              limpiarRolTorneo(uid);
-            }, 10 * 60 * 1000);
-          } catch {}
-        }
-
-        // Contar torneos jugados
-        const data = loadData();
-        for (const uid of ganadores) {
-          const ud = getUser(data, uid);
-          ud.torneosJugados = (ud.torneosJugados || 0) + 1;
-        }
-        saveData(data);
-
-      } catch(e) { console.error("[TORNEO] Error sorteo:", e.message); }
-    }, INSCRIPCION_MS);
-
-    return;
-  }
-
-  // Botón inscribirse
-  if (interaction.isButton() && interaction.customId === "unirse_torneo") {
-    const torneo = torneosActivos.get(interaction.message.id);
-    if (!torneo) return interaction.reply({ content: "❌ Las inscripciones ya cerraron.", ephemeral: true });
-    if (torneo.inscritos.includes(interaction.user.id))
-      return interaction.reply({ content: "⚠️ Ya estás inscrito en el sorteo.", ephemeral: true });
-
-    if (!interaction.member.roles.cache.has(ACTIVITY_ROLE_ID))
-      return interaction.reply({ content: "❌ No tienes el rol de actividad.", ephemeral: true });
-
-    // Verificar si está suspendido de torneos
-    const dataTorneo = loadData();
-    const udTorneo   = dataTorneo[interaction.user.id];
-    if (udTorneo?.suspendidoTorneoHasta && udTorneo.suspendidoTorneoHasta > Date.now()) {
-      const expira = Math.floor(udTorneo.suspendidoTorneoHasta / 1000);
-      return interaction.reply({ content: `🚫 Estás suspendido de torneos hasta <t:${expira}:F>.`, ephemeral: true });
+      } catch { panelMsgId = null; }
     }
 
-    torneo.inscritos.push(interaction.user.id);
+    const msgs = await canal.messages.fetch({ limit: 10 });
+    const existing = msgs.find(m => m.author.id === client.user.id && m.embeds.length > 0);
+    if (existing) { panelMsgId = existing.id; await existing.edit({ embeds: [embed], components: [row] }); return; }
 
-    const rowUpdate = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId("unirse_torneo")
-        .setLabel(`¡Quiero jugar! (${torneo.inscritos.length})`)
-        .setStyle(ButtonStyle.Success).setEmoji("🎮")
-    );
+    const msg = await canal.send({ embeds: [embed], components: [row] });
+    panelMsgId = msg.id;
+  } catch (e) {
+    console.error("[PANEL] Error:", e.message);
+  }
+}
+function buildListadoEmbed(EVENTOS, label) {
+  function horaAMin(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
+  const ordenados = [...EVENTOS].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
+  const lineas = ordenados.map(e => {
+    const em = EMOJIS[e.tipo]?.emoji || "🎮";
+    return `• **${e.hora}** — ${em} ${e.nombre}${e.puntos ? ` → ${e.puntos}` : ""} → Rank **${e.rank}**`;
+  });
+  return new EmbedBuilder()
+    .setColor(label === "RUSH" ? 0xFFD700 : 0xFFD700)
+    .setTitle(`📋 Listado de eventos — ${label}`)
+    .setDescription(lineas.join("\n"))
+    .setTimestamp();
+}
 
-    try { await interaction.update({ components: [rowUpdate] }); } catch {}
 
-    await interaction.followUp({
-      content: `✅ <@${interaction.user.id}> entró al sorteo del torneo **${torneo.nombre}**. ¡Buena suerte! 🎰`,
-      ephemeral: false
-    });
+async function handlePanelButton(interaction, EVENTOS, EVENTOS_RUSH) {
+  if (!interaction.isButton()) return;
+  const validIds = ["panel_ver_todos","panel_proximo_torneo","panel_ver_todos_rush","panel_proximo_torneo_rush"];
+  if (!validIds.includes(interaction.customId)) return;
+
+  function horaAMin(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
+
+  const isRush = interaction.customId.endsWith("_rush");
+  const eventosUsar = isRush ? (EVENTOS_RUSH || EVENTOS) : EVENTOS;
+  const label = isRush ? "RUSH" : "ROLAS";
+
+  if (interaction.customId.startsWith("panel_ver_todos")) {
+    const embed = buildListadoEmbed(eventosUsar, label);
+    return interaction.reply({ embeds: [embed], ephemeral: true });
+  }
+
+  if (interaction.customId.startsWith("panel_proximo_torneo")) {
+    const ahora = (() => {
+      const c = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
+      return c.getHours() * 60 + c.getMinutes();
+    })();
+    const ordenados = [...eventosUsar].sort((a, b) => horaAMin(a.hora) - horaAMin(b.hora));
+    const proximo = ordenados.find(e => horaAMin(e.hora) > ahora) || ordenados[0];
+    const diffMin = ((horaAMin(proximo.hora) - ahora) + 1440) % 1440;
+    const emoji   = EMOJIS[proximo.tipo] || "🎮";
+
+    const embed = new EmbedBuilder()
+      .setColor(isRush ? 0xFFD700 : 0xFFD700)
+      .setTitle(`${emoji} Próximo torneo — ${label}`)
+      .setDescription(
+        `**${proximo.nombre}**\n` +
+        `📅 **Hora:** ${proximo.hora}\n` +
+        `🏅 **Rank:** ${proximo.rank}\n` +
+        `${proximo.puntos ? `🎯 **Puntos:** ${proximo.puntos}\n` : ""}` +
+        `⏳ **${diffEnPalabras(diffMin)}**`
+      )
+      .setTimestamp();
+
+    return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 }
 
-module.exports = { handleTorneo, handleTorneoInteraction, recoverTorneoRoles };
+// ── CREADOR DE EMBEDS MODO ENCUESTA ──────────────────────────────────────────
+const embedSesiones = new Map(); // userId -> { paso, datos, canal }
+
+async function handleEmbedCreator(message) {
+  if (message.author.bot) return;
+  if (!message.member?.permissions.has(PermissionFlagsBits.Administrator)) return;
+
+  const content = message.content.trim();
+
+  // Iniciar con !embed
+  if (content.toLowerCase() === "!embed") {
+    if (embedSesiones.has(message.author.id)) {
+      embedSesiones.delete(message.author.id);
+    }
+    embedSesiones.set(message.author.id, { paso: "canal", datos: {} });
+    return message.reply("📝 **Creador de embeds**\n\n¿En qué canal quieres enviar el embed? (menciona el canal con #)");
+  }
+
+  // Continuar sesión activa
+  const sesion = embedSesiones.get(message.author.id);
+  if (!sesion) return;
+
+  const skip = content === "-"; // escribir - para omitir un campo
+
+  if (sesion.paso === "canal") {
+    const canal = message.mentions.channels.first();
+    if (!canal) return message.reply("❌ Menciona el canal con #. Ejemplo: `#anuncios`");
+    sesion.datos.canal = canal;
+    sesion.paso = "titulo";
+    return message.reply("✅ Canal: " + canal + "\n\n**¿Cuál es el título del embed?**");
+  }
+
+  if (sesion.paso === "titulo") {
+    if (skip) return message.reply("❌ El título es obligatorio.");
+    sesion.datos.titulo = content;
+    sesion.paso = "descripcion";
+    return message.reply(`✅ Título guardado.\n\n**¿Descripción?** (escribe \`-\` para omitir)`);
+  }
+
+  if (sesion.paso === "descripcion") {
+    sesion.datos.descripcion = skip ? null : content;
+    sesion.paso = "color";
+    return message.reply(`✅ Descripción guardada.\n\n**¿Color?** Pon un hex como \`#39FF14\` (escribe \`-\` para verde por defecto)`);
+  }
+
+  if (sesion.paso === "color") {
+    sesion.datos.color = skip ? 0xFFD700 : parseInt(content.replace("#", ""), 16) || 0xFFD700;
+    sesion.paso = "logo";
+    return message.reply(`✅ Color guardado.\n\n**¿Logo/thumbnail?** (URL de imagen, o \`-\` para omitir)`);
+  }
+
+  if (sesion.paso === "logo") {
+    sesion.datos.logo = skip ? null : content;
+    sesion.paso = "banner";
+    return message.reply(`✅ Logo guardado.\n\n**¿Banner/imagen principal?** (URL de imagen, o \`-\` para omitir)`);
+  }
+
+  if (sesion.paso === "banner") {
+    sesion.datos.banner = skip ? null : content;
+    sesion.paso = "footer";
+    return message.reply(`✅ Banner guardado.\n\n**¿Texto del footer?** (o \`-\` para omitir)`);
+  }
+
+  if (sesion.paso === "footer") {
+    sesion.datos.footer = skip ? null : content;
+    embedSesiones.delete(message.author.id);
+
+    const { canal, titulo, descripcion, color, logo, banner, footer } = sesion.datos;
+    const embed = new EmbedBuilder().setColor(color).setTitle(titulo).setTimestamp();
+    if (descripcion) embed.setDescription(descripcion);
+    if (logo)        embed.setThumbnail(logo);
+    if (banner)      embed.setImage(banner);
+    if (footer)      embed.setFooter({ text: footer });
+
+    try {
+      await canal.send({ embeds: [embed] });
+      await message.reply(`✅ ¡Embed enviado en ${canal}!`);
+    } catch (e) {
+      await message.reply(`❌ No pude enviar el embed: ${e.message}`);
+    }
+  }
+}
+
+
+// ── !anuncio ──────────────────────────────────────────────────────────────────
+async function handleAnuncioCmd(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!anuncio")) return;
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require('./config');
+  if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
+  const texto = message.content.slice("!anuncio".length).trim();
+  if (!texto) return message.reply("❌ Uso: `!anuncio [texto]`");
+  const canal = await message.client.channels.fetch("1516259340431130715").catch(() => null);
+  if (!canal) return message.reply("❌ No se encontró el canal de anuncios.");
+  const embed = new EmbedBuilder().setColor(0xFFD700).setTitle("📢 ANUNCIO").setDescription(texto).setFooter({ text: `Publicado por ${message.author.tag}` }).setTimestamp();
+  await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}>`, embeds: [embed] });
+  await message.reply("✅ Anuncio enviado.");
+}
+
+// ── !recordatorio ─────────────────────────────────────────────────────────────
+async function handleRecordatorio(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!recordatorio")) return;
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require('./config');
+  if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
+  const args = message.content.slice("!recordatorio".length).trim().split(/\s+/);
+  const mins = parseInt(args[0]);
+  const texto = args.slice(1).join(" ");
+  if (isNaN(mins) || mins < 1 || !texto) return message.reply("❌ Uso: `!recordatorio [minutos] [texto]`");
+  await message.reply(`✅ Recordatorio en **${mins} minuto${mins === 1 ? "" : "s"}**.`);
+  setTimeout(async () => {
+    const canal = await message.client.channels.fetch("1516259340431130715").catch(() => null);
+    if (!canal) return;
+    const embed = new EmbedBuilder().setColor(0xf39c12).setTitle("⏰ RECORDATORIO").setDescription(texto).setFooter({ text: `Programado por ${message.author.tag}` }).setTimestamp();
+    await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}>`, embeds: [embed] });
+  }, mins * 60 * 1000);
+}
+
+// ── !encuesta (paso a paso) ───────────────────────────────────────────────────
+const EMOJI_SI = "<:emoji_41:1504932685813121288>";
+const EMOJI_NO = "<:emoji_42:1504932838321946775>";
+const encuestaSesiones = new Map();
+
+async function handleEncuesta(message) {
+  if (message.author.bot) return;
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require('./config');
+  if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
+  const content = message.content.trim();
+  if (content.toLowerCase() === "!encuesta") {
+    encuestaSesiones.set(message.author.id, { paso: "titulo", datos: {} });
+    return message.reply("📊 **Creador de encuestas**\n\n¿Cuál es el título de la encuesta?");
+  }
+  const sesion = encuestaSesiones.get(message.author.id);
+  if (!sesion) return;
+  if (sesion.paso === "titulo") {
+    sesion.datos.titulo = content;
+    sesion.paso = "descripcion";
+    return message.reply("✅ Título guardado.\n\n**¿Descripción o pregunta?** (escribe `-` para omitir)");
+  }
+  if (sesion.paso === "descripcion") {
+    sesion.datos.descripcion = content === "-" ? null : content;
+    sesion.paso = "canal";
+    return message.reply("✅ Guardado.\n\n**¿En qué canal?** (menciona el canal con #)");
+  }
+  if (sesion.paso === "canal") {
+    const canal = message.mentions.channels.first();
+    if (!canal) return message.reply("❌ Menciona el canal con #");
+    encuestaSesiones.delete(message.author.id);
+    const embed = new EmbedBuilder().setColor(0xFFD700).setTitle(`📊 ${sesion.datos.titulo}`).setTimestamp().setFooter({ text: `Encuesta por ${message.author.tag}` });
+    if (sesion.datos.descripcion) embed.setDescription(sesion.datos.descripcion);
+    try {
+      const msg = await canal.send({ content: `<@&${ACTIVITY_ROLE_ID}>`, embeds: [embed] });
+      await msg.react(EMOJI_SI).catch(() => {});
+      await msg.react(EMOJI_NO).catch(() => {});
+      await message.reply(`✅ Encuesta publicada en ${canal}.`);
+    } catch(e) { await message.reply(`❌ Error: ${e.message}`); }
+  }
+}
+
+module.exports = { initPanelEventos, handlePanelButton, handleEmbedCreator, handleAnuncioCmd, handleRecordatorio, handleEncuesta };

@@ -1,117 +1,157 @@
-const { EmbedBuilder }                                         = require("discord.js");
-const { loadData, getUser, todayKey }                          = require("../utils/dataManager");
-const { msToHours, lastNDays }                                 = require("../utils/format");
-const { ACTIVITY_ROLE_ID, TOP_ROLE_ID, TOP_SIZE,
-        GUILD_ID, LOGO_URL, CANAL_CMD_HORAS }                  = require("../config");
+const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
+const { STAFF_ROLE_ID, CANAL_CMD_HORAS, CANAL_CMD_INACTIVO,
+        CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, CANAL_CMD_ADMIN } = require('./config');
 
-// Sesiones activas para calcular tiempo en vivo
-let _activeSessions = null;
-function getActiveSessions() {
-  if (!_activeSessions) _activeSessions = require("../events/voiceStateUpdate").activeSessions;
-  return _activeSessions;
+// Convierte interacción de slash en un objeto compatible con los handlers existentes
+function fakeMessage(interaction, contentOverride = null) {
+  return {
+    author:   interaction.user,
+    member:   interaction.member,
+    guild:    interaction.guild,
+    channel:  interaction.channel,
+    client:   interaction.client,
+    content:  contentOverride || `!${interaction.commandName}`,
+    mentions: {
+      members: { first: () => interaction.options.getMember("usuario") || null },
+      users:   { first: () => interaction.options.getUser("usuario") || null },
+    },
+    reply:  async (opts) => {
+      if (interaction.replied || interaction.deferred) return interaction.followUp(typeof opts === "string" ? { content: opts, ephemeral: true } : { ...opts, ephemeral: true });
+      return interaction.reply(typeof opts === "string" ? { content: opts, ephemeral: true } : { ...opts, ephemeral: true });
+    },
+    delete: async () => {},
+    attachments: new Map(),
+  };
 }
 
-async function handleHoras(message, client) {
-  if (message.author.bot) return;
-  const args    = message.content.trim().split(/\s+/);
-  const comando = args[0].toLowerCase();
-  if (!["!horas","!top"].includes(comando)) return;
+async function handleSlashCommand(interaction, client) {
+  if (!interaction.isChatInputCommand()) return;
 
-  // Solo en canal ROLAS — si es otro canal, no hacer nada (puede ser canal RUSH)
-  if (message.channel.id !== CANAL_CMD_HORAS) return;
+  const cmd = interaction.commandName;
 
-  const data           = loadData();
-  const activeSessions = getActiveSessions();
-  const ahora          = Date.now();
-
-  // ── !horas ────────────────────────────────────────────────────
-  if (comando === "!horas") {
-    const target = message.mentions.members.first() || message.member;
-    if (!target.roles.cache.has(ACTIVITY_ROLE_ID))
-      return message.reply("❌ Ese usuario no tiene el rol de actividad.");
-
-    const userData = getUser(data, target.id);
-    const dias     = lastNDays(7);
-    const hoy      = todayKey();
-
-    // Calcular estado del usuario
-    const _ses = activeSessions.get(target.id); const sesionTs = _ses && !_ses.isRush ? _ses.startMs : (userData.sessionStart || null);
-    const enVivo     = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
-    const msHoy      = (userData.days?.[hoy]?.totalMs || 0) + enVivo;
-    const estaEnVoz  = enVivo > 0;
-    const tieneError = !userData.lastSeen && !userData.botFirstSeen && !estaEnVoz;
-
-    // Indicador de estado
-    let estadoEmoji = "🔴"; // inactivo
-    let estadoTexto = "Inactivo";
-    if (estaEnVoz) { estadoEmoji = "🟢"; estadoTexto = "En voz ahora"; }
-    else if (tieneError) { estadoEmoji = "🟡"; estadoTexto = "Sin registro"; }
-    else if (msHoy > 0) { estadoEmoji = "🟢"; estadoTexto = "Activo hoy"; }
-
-    let diasText = "";
-    for (const dia of dias) {
-      const ms = userData.days?.[dia]?.totalMs || 0;
-      diasText += `${ms > 0 ? "🟩" : "⬜"} \`${dia}\` — ${msToHours(ms)}\n`;
-    }
-
-    const embed = new EmbedBuilder()
-      .setTitle(`${estadoEmoji} ${target.user.username} — ${estadoTexto}`)
-      .setColor(estaEnVoz ? 0x39FF14 : tieneError ? 0xf1c40f : msHoy > 0 ? 0x39FF14 : 0xe74c3c)
-      .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
-      .addFields(
-        { name: "📅 Últimos 7 días",  value: diasText || "*Sin registros*" },
-        { name: "⏰ Hoy",            value: `\`${msToHours(msHoy)}\``,              inline: true },
-        { name: "📆 Esta semana",     value: `\`${msToHours(userData.weekMs)}\``,   inline: true },
-        { name: "🏆 Total",           value: `\`${msToHours(userData.totalMs)}\``,  inline: true },
-        { name: "🔥 Racha",           value: `\`${userData.diasSeguidos || 0}d\``,  inline: true },
-        { name: "🎖️ Tops ganados",    value: `\`${userData.topsGanados || 0}\``,    inline: true },
-        { name: "⚠️ Advertencias",    value: `\`${userData.advertencias || 0}/3\``, inline: true },
-        { name: "👁️ Última vez",      value: userData.lastSeen
-            ? `<t:${Math.floor(userData.lastSeen / 1000)}:R>` : "*Nunca*",          inline: true },
-      )
-      .setFooter({ text: "🟢 Activo • 🔴 Inactivo • 🟡 Sin registro" })
-      .setTimestamp();
-
-    return message.reply({ embeds: [embed] });
+  // Diferir respuesta para comandos que tardan
+  const comandosLentos = ["nuevo","migrarroles","listactivos","listinactivos","resetweek","forceupdate","syncvoz"];
+  if (comandosLentos.includes(cmd)) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => {});
   }
 
-  // ── !top ──────────────────────────────────────────────────────
-  if (comando === "!top") {
-    const guild = await client.guilds.fetch(GUILD_ID);
-    await guild.members.fetch();
-
-    const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot
-    );
-
-    const ranking = [];
-    for (const [id, member] of miembros) {
-      const ud     = getUser(data, id);
-      const _ses2 = activeSessions.get(id); const sesionTs = _ses2 && !_ses2.isRush ? _ses2.startMs : (ud.sessionStart || null);
-      const enVivo = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
-      ranking.push({ member, weekMs: (ud.weekMs||0)+enVivo, totalMs: ud.totalMs||0, enVivo: enVivo>0 });
+  try {
+    // ── Actividad ─────────────────────────────────────────────
+    if (cmd === "horas") {
+      const { handleHoras } = require("./horas");
+      return handleHoras(fakeMessage(interaction), client);
     }
-    ranking.sort((a,b) => b.weekMs - a.weekMs);
+    if (cmd === "top") {
+      const { handleHoras } = require("./horas");
+      return handleHoras(fakeMessage(interaction, "!top"), client);
+    }
+    if (cmd === "sesiones") {
+      const { handleHoras } = require("./horas");
+      return handleHoras(fakeMessage(interaction, "!sesiones"), client);
+    }
+    if (cmd === "info") {
+      const { handleHoras } = require("./horas");
+      return handleHoras(fakeMessage(interaction, "!info"), client);
+    }
+    if (cmd === "status") {
+      const { handleHoras } = require("./horas");
+      return handleHoras(fakeMessage(interaction, "!status"), client);
+    }
 
-    const medals = ["🥇","🥈","🥉","4️⃣","5️⃣"];
-    let topText  = "";
-    ranking.slice(0, TOP_SIZE).forEach(({ member, weekMs, totalMs, enVivo }, i) => {
-      topText +=
-        `${medals[i]} **${member.user.username}** ${enVivo ? "🟢" : "🔴"}\n` +
-        `┣ Esta semana: \`${msToHours(weekMs)}\`\n` +
-        `┗ Total: \`${msToHours(totalMs)}\`\n\n`;
-    });
+    // ── Inactividad ───────────────────────────────────────────
+    if (cmd === "inactivo") {
+      const { handleInactividad } = require("./inactividad");
+      // Forzar canal correcto
+      const canalInactivo = await client.channels.fetch(CANAL_CMD_INACTIVO).catch(() => interaction.channel);
+      const fakeMsg = { ...fakeMessage(interaction, "!inactivo"), channel: canalInactivo };
+      return handleInactividad(fakeMsg);
+    }
 
-    const embed = new EmbedBuilder()
-      .setTitle(`🏆 Top ${TOP_SIZE} — Semana Actual`)
-      .setColor(0x39FF14)
-      .setThumbnail(LOGO_URL)
-      .setDescription(topText || "*Sin datos aún.*")
-      .setFooter({ text: "🟢 En voz ahora • 🔴 Inactivo" })
-      .setTimestamp();
+    // ── Torneos ───────────────────────────────────────────────
+    if (cmd === "torneo" || cmd === "torneostop" || cmd === "reportetorneo") {
+      const { handleAdmin } = require("./admin");
+      const userMention = interaction.options.getUser("usuario");
+      const content = userMention ? `!${cmd} <@${userMention.id}>` : `!${cmd}`;
+      return handleAdmin(fakeMessage(interaction, content), client);
+    }
 
-    return message.reply({ embeds: [embed] });
+    // ── Anuncios ──────────────────────────────────────────────
+    if (["activense","tormenta","battle","drop"].includes(cmd)) {
+      const { handleAnuncios } = require("./anuncios");
+      const canalAnuncios = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => interaction.channel);
+      return handleAnuncios({ ...fakeMessage(interaction, `!${cmd}`), channel: canalAnuncios });
+    }
+    if (cmd === "tandastormentas" || cmd === "paratanda") {
+      const { handleTandas } = require("./tandas");
+      const canalAnuncios = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => interaction.channel);
+      return handleTandas({ ...fakeMessage(interaction, `!${cmd}`), channel: canalAnuncios });
+    }
+
+    // ── Armario ───────────────────────────────────────────────
+    if (cmd === "armario") {
+      const { handleArmarioCommand } = require("./armario");
+      const userMention = interaction.options.getUser("usuario");
+      const content = userMention ? `!armario <@${userMention.id}>` : "!armario";
+      return handleArmarioCommand(fakeMessage(interaction, content));
+    }
+    if (cmd === "toparmario") {
+      const { handleTopArmario } = require("./armario");
+      return handleTopArmario(fakeMessage(interaction));
+    }
+
+    // ── Nuevo / Chiteado ──────────────────────────────────────
+    if (cmd === "nuevo") {
+      const { handleNuevo } = require("./nuevo");
+      const userMencion = interaction.options.getUser("usuario");
+      const content = `!nuevo <@${userMencion.id}>`;
+      return handleNuevo(fakeMessage(interaction, content), client);
+    }
+    if (cmd === "chiteado") {
+      const { handleAdmin } = require("./admin");
+      const userMencion = interaction.options.getUser("usuario");
+      return handleAdmin(fakeMessage(interaction, `!chiteado <@${userMencion.id}>`), client);
+    }
+
+    // ── Embed ─────────────────────────────────────────────────
+    if (cmd === "embed") {
+      const { handleEmbedCreator } = require("./panelEventos");
+      const canal       = interaction.options.getChannel("canal");
+      const titulo      = interaction.options.getString("titulo");
+      const descripcion = interaction.options.getString("descripcion") || "_";
+      const color       = interaction.options.getString("color") || "_";
+      const logo        = interaction.options.getString("logo") || "_";
+      const banner      = interaction.options.getString("banner") || "_";
+      const footer      = interaction.options.getString("footer") || "_";
+      const content = `!embed <#${canal.id}> | ${titulo} | ${descripcion} | ${color} | ${logo} | ${banner} | ${footer}`;
+      return handleEmbedCreator(fakeMessage(interaction, content));
+    }
+
+    // ── Panel / Tickets ───────────────────────────────────────
+    if (cmd === "panel" || cmd === "paneltickets" || cmd === "forceupdate" || cmd === "syncvoz") {
+      const { handleAdmin } = require("./admin");
+      return handleAdmin(fakeMessage(interaction, `!${cmd}`), client);
+    }
+
+    // ── Admin de actividad ────────────────────────────────────
+    if (["addtime","removetime","sethoras","resetuser","resetweek","setadv","clearadv","listactivos","listinactivos","migrarroles"].includes(cmd)) {
+      const { handleAdmin } = require("./admin");
+      const userMencion = interaction.options.getUser("usuario");
+      const minutos     = interaction.options.getInteger("minutos");
+      const cantidad    = interaction.options.getInteger("cantidad");
+      let content = `!${cmd}`;
+      if (userMencion) content += ` <@${userMencion.id}>`;
+      if (minutos !== null && minutos !== undefined) content += ` ${minutos}`;
+      if (cantidad !== null && cantidad !== undefined) content += ` ${cantidad}`;
+      return handleAdmin(fakeMessage(interaction, content), client);
+    }
+
+    await interaction.reply({ content: "❌ Comando no reconocido.", ephemeral: true }).catch(() => {});
+  } catch(e) {
+    console.error(`[SLASH] Error en /${cmd}:`, e.message);
+    const msg = `❌ Error ejecutando el comando: ${e.message}`;
+    if (interaction.deferred) return interaction.editReply(msg).catch(() => {});
+    if (!interaction.replied) return interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
   }
 }
 
-module.exports = { handleHoras };
+module.exports = { handleSlashCommand };

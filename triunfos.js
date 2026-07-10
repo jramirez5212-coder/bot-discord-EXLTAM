@@ -1,157 +1,197 @@
-const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
-const { STAFF_ROLE_ID, CANAL_CMD_HORAS, CANAL_CMD_INACTIVO,
-        CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, CANAL_CMD_ADMIN } = require("../config");
+const { EmbedBuilder } = require("discord.js");
+const fs   = require("fs");
+const path = require("path");
 
-// Convierte interacción de slash en un objeto compatible con los handlers existentes
-function fakeMessage(interaction, contentOverride = null) {
-  return {
-    author:   interaction.user,
-    member:   interaction.member,
-    guild:    interaction.guild,
-    channel:  interaction.channel,
-    client:   interaction.client,
-    content:  contentOverride || `!${interaction.commandName}`,
-    mentions: {
-      members: { first: () => interaction.options.getMember("usuario") || null },
-      users:   { first: () => interaction.options.getUser("usuario") || null },
-    },
-    reply:  async (opts) => {
-      if (interaction.replied || interaction.deferred) return interaction.followUp(typeof opts === "string" ? { content: opts, ephemeral: true } : { ...opts, ephemeral: true });
-      return interaction.reply(typeof opts === "string" ? { content: opts, ephemeral: true } : { ...opts, ephemeral: true });
-    },
-    delete: async () => {},
-    attachments: new Map(),
-  };
+const CANAL_TRIUNFOS_ID = "1516259316225671263";
+const CANAL_LOGS_ID     = "1517003347561938954";
+const DATA_FILE         = path.join(__dirname, "../../triunfos_data.json");
+
+// ── Persistencia ──────────────────────────────────────────────────────────────
+function loadTriunfos() {
+  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "{}");
+  try { return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); } catch { return {}; }
+}
+function saveTriunfos(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-async function handleSlashCommand(interaction, client) {
-  if (!interaction.isChatInputCommand()) return;
+// ── Mensaje fijado ─────────────────────────────────────────────────────────────
+let pinnedTriunfosMsgId = null;
 
-  const cmd = interaction.commandName;
+async function ensurePinnedTriunfos(canal) {
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setTitle("🏆 ¡COMPARTE TUS TRIUNFOS!")
+    .setDescription(
+      "¿Ganaste un torneo? ¿Hiciste algo épico? **¡Sube tu foto o clip aquí!**\n\n" +
+      "🎁 **Habrá premio para quien más triunfos acumule al final del mes.**\n" +
+      "El bot lleva el registro automáticamente — cada cosa que subas cuenta.\n\n" +
+      "📌 Solo fotos y videos relacionados con logros en el servidor.\n" +
+      "🤖 El bot repostea todo automáticamente mostrando quién lo envió."
+    )
+    .setFooter({ text: "¡El que más triunfos acumule se lleva el premio mensual! 🥇" })
+    .setTimestamp();
 
-  // Diferir respuesta para comandos que tardan
-  const comandosLentos = ["nuevo","migrarroles","listactivos","listinactivos","resetweek","forceupdate","syncvoz"];
-  if (comandosLentos.includes(cmd)) {
-    await interaction.deferReply({ ephemeral: true }).catch(() => {});
+  if (pinnedTriunfosMsgId) {
+    try {
+      const old = await canal.messages.fetch(pinnedTriunfosMsgId);
+      await old.delete();
+    } catch {}
   }
 
   try {
-    // ── Actividad ─────────────────────────────────────────────
-    if (cmd === "horas") {
-      const { handleHoras } = require("./horas");
-      return handleHoras(fakeMessage(interaction), client);
-    }
-    if (cmd === "top") {
-      const { handleHoras } = require("./horas");
-      return handleHoras(fakeMessage(interaction, "!top"), client);
-    }
-    if (cmd === "sesiones") {
-      const { handleHoras } = require("./horas");
-      return handleHoras(fakeMessage(interaction, "!sesiones"), client);
-    }
-    if (cmd === "info") {
-      const { handleHoras } = require("./horas");
-      return handleHoras(fakeMessage(interaction, "!info"), client);
-    }
-    if (cmd === "status") {
-      const { handleHoras } = require("./horas");
-      return handleHoras(fakeMessage(interaction, "!status"), client);
-    }
-
-    // ── Inactividad ───────────────────────────────────────────
-    if (cmd === "inactivo") {
-      const { handleInactividad } = require("./inactividad");
-      // Forzar canal correcto
-      const canalInactivo = await client.channels.fetch(CANAL_CMD_INACTIVO).catch(() => interaction.channel);
-      const fakeMsg = { ...fakeMessage(interaction, "!inactivo"), channel: canalInactivo };
-      return handleInactividad(fakeMsg);
-    }
-
-    // ── Torneos ───────────────────────────────────────────────
-    if (cmd === "torneo" || cmd === "torneostop" || cmd === "reportetorneo") {
-      const { handleAdmin } = require("./admin");
-      const userMention = interaction.options.getUser("usuario");
-      const content = userMention ? `!${cmd} <@${userMention.id}>` : `!${cmd}`;
-      return handleAdmin(fakeMessage(interaction, content), client);
-    }
-
-    // ── Anuncios ──────────────────────────────────────────────
-    if (["activense","tormenta","battle","drop"].includes(cmd)) {
-      const { handleAnuncios } = require("./anuncios");
-      const canalAnuncios = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => interaction.channel);
-      return handleAnuncios({ ...fakeMessage(interaction, `!${cmd}`), channel: canalAnuncios });
-    }
-    if (cmd === "tandastormentas" || cmd === "paratanda") {
-      const { handleTandas } = require("./tandas");
-      const canalAnuncios = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => interaction.channel);
-      return handleTandas({ ...fakeMessage(interaction, `!${cmd}`), channel: canalAnuncios });
-    }
-
-    // ── Armario ───────────────────────────────────────────────
-    if (cmd === "armario") {
-      const { handleArmarioCommand } = require("./armario");
-      const userMention = interaction.options.getUser("usuario");
-      const content = userMention ? `!armario <@${userMention.id}>` : "!armario";
-      return handleArmarioCommand(fakeMessage(interaction, content));
-    }
-    if (cmd === "toparmario") {
-      const { handleTopArmario } = require("./armario");
-      return handleTopArmario(fakeMessage(interaction));
-    }
-
-    // ── Nuevo / Chiteado ──────────────────────────────────────
-    if (cmd === "nuevo") {
-      const { handleNuevo } = require("./nuevo");
-      const userMencion = interaction.options.getUser("usuario");
-      const content = `!nuevo <@${userMencion.id}>`;
-      return handleNuevo(fakeMessage(interaction, content), client);
-    }
-    if (cmd === "chiteado") {
-      const { handleAdmin } = require("./admin");
-      const userMencion = interaction.options.getUser("usuario");
-      return handleAdmin(fakeMessage(interaction, `!chiteado <@${userMencion.id}>`), client);
-    }
-
-    // ── Embed ─────────────────────────────────────────────────
-    if (cmd === "embed") {
-      const { handleEmbedCreator } = require("./panelEventos");
-      const canal       = interaction.options.getChannel("canal");
-      const titulo      = interaction.options.getString("titulo");
-      const descripcion = interaction.options.getString("descripcion") || "_";
-      const color       = interaction.options.getString("color") || "_";
-      const logo        = interaction.options.getString("logo") || "_";
-      const banner      = interaction.options.getString("banner") || "_";
-      const footer      = interaction.options.getString("footer") || "_";
-      const content = `!embed <#${canal.id}> | ${titulo} | ${descripcion} | ${color} | ${logo} | ${banner} | ${footer}`;
-      return handleEmbedCreator(fakeMessage(interaction, content));
-    }
-
-    // ── Panel / Tickets ───────────────────────────────────────
-    if (cmd === "panel" || cmd === "paneltickets" || cmd === "forceupdate" || cmd === "syncvoz") {
-      const { handleAdmin } = require("./admin");
-      return handleAdmin(fakeMessage(interaction, `!${cmd}`), client);
-    }
-
-    // ── Admin de actividad ────────────────────────────────────
-    if (["addtime","removetime","sethoras","resetuser","resetweek","setadv","clearadv","listactivos","listinactivos","migrarroles"].includes(cmd)) {
-      const { handleAdmin } = require("./admin");
-      const userMencion = interaction.options.getUser("usuario");
-      const minutos     = interaction.options.getInteger("minutos");
-      const cantidad    = interaction.options.getInteger("cantidad");
-      let content = `!${cmd}`;
-      if (userMencion) content += ` <@${userMencion.id}>`;
-      if (minutos !== null && minutos !== undefined) content += ` ${minutos}`;
-      if (cantidad !== null && cantidad !== undefined) content += ` ${cantidad}`;
-      return handleAdmin(fakeMessage(interaction, content), client);
-    }
-
-    await interaction.reply({ content: "❌ Comando no reconocido.", ephemeral: true }).catch(() => {});
-  } catch(e) {
-    console.error(`[SLASH] Error en /${cmd}:`, e.message);
-    const msg = `❌ Error ejecutando el comando: ${e.message}`;
-    if (interaction.deferred) return interaction.editReply(msg).catch(() => {});
-    if (!interaction.replied) return interaction.reply({ content: msg, ephemeral: true }).catch(() => {});
+    const msg = await canal.send({ embeds: [embed] });
+    pinnedTriunfosMsgId = msg.id;
+  } catch (e) {
+    console.error("[TRIUNFOS] Error enviando mensaje fijado:", e.message);
   }
 }
 
-module.exports = { handleSlashCommand };
+// ── Handler principal ─────────────────────────────────────────────────────────
+async function handleTriunfos(message) {
+  if (message.author.bot) return;
+  if (message.channel.id !== CANAL_TRIUNFOS_ID) return;
+
+  const contenido = message.content?.trim() || "";
+  const adjuntos  = [...message.attachments.values()];
+
+  if (!contenido && adjuntos.length === 0) return;
+
+  // Esperar 3 segundos para que el CDN de Discord procese el adjunto
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  // Descargar adjuntos a memoria
+  const archivosDescargados = [];
+  for (const a of adjuntos) {
+    try {
+      const res    = await fetch(a.url);
+      const buffer = Buffer.from(await res.arrayBuffer());
+      archivosDescargados.push({ buffer, name: a.name || "archivo", contentType: a.contentType });
+    } catch (e) {
+      console.error("[TRIUNFOS] Error descargando adjunto:", e.message);
+    }
+  }
+
+  // Actualizar registro
+  const data = loadTriunfos();
+  if (!data[message.author.id]) data[message.author.id] = { tag: message.author.tag, total: 0 };
+  data[message.author.id].total++;
+  data[message.author.id].tag = message.author.tag;
+  const totalUsuario = data[message.author.id].total;
+  saveTriunfos(data);
+
+  // Embed de repost
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setAuthor({ name: message.author.tag, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+    .setDescription(contenido || null)
+    .setFooter({ text: `Triunfo #${totalUsuario} de ${message.author.tag} • ID: ${message.author.id}` })
+    .setTimestamp();
+
+  const imagenDescargada = archivosDescargados.find(a => a.contentType?.startsWith("image/"));
+  if (imagenDescargada) embed.setImage(`attachment://${imagenDescargada.name}`);
+
+  try {
+    await message.channel.send({
+      content: `🏆 Triunfo de ${message.author}`,
+      embeds:  [embed],
+      files:   archivosDescargados.map(a => ({ attachment: a.buffer, name: a.name })),
+    });
+  } catch (e) {
+    console.error("[TRIUNFOS] Error reenviando:", e.message);
+  }
+
+  // Borrar mensaje original
+  try { await message.delete(); } catch {}
+
+  // Log en canal de logs
+  try {
+    const canalLogs = await message.client.channels.fetch(CANAL_LOGS_ID).catch(e => {
+      console.error("[TRIUNFOS] No se pudo obtener canal de logs:", e.message);
+      return null;
+    });
+    if (canalLogs) {
+      const top3 = Object.entries(data)
+        .sort((a, b) => b[1].total - a[1].total)
+        .slice(0, 3)
+        .map(([, v], i) => `${["🥇","🥈","🥉"][i]} **${v.tag}** — ${v.total} triunfos`);
+
+      const logEmbed = new EmbedBuilder()
+        .setColor(0xFFD700)
+        .setTitle("📋 Nuevo Triunfo Registrado")
+        .setDescription(
+          `**Usuario:** ${message.author}\n` +
+          `**Triunfo #:** ${totalUsuario} (acumulado)\n` +
+          `${contenido ? `**Mensaje:** ${contenido}\n` : ""}` +
+          `\n🏅 **Top 3 del mes:**\n${top3.join("\n")}`
+        )
+        .setTimestamp();
+      await canalLogs.send({ embeds: [logEmbed] });
+      console.log(`[TRIUNFOS] Log enviado para ${message.author.tag} — triunfo #${totalUsuario}`);
+    } else {
+      console.error("[TRIUNFOS] Canal de logs no encontrado:", CANAL_LOGS_ID);
+    }
+  } catch (e) {
+    console.error("[TRIUNFOS] Error enviando log:", e.message);
+  }
+
+  // Re-enviar mensaje fijado al final para que siempre quede abajo
+  await ensurePinnedTriunfos(message.channel);
+}
+
+// ── Comandos de ranking ───────────────────────────────────────────────────────
+async function handleTopTriunfos(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!toptriunfos")) return;
+
+  const data = loadTriunfos();
+  const ranking = Object.entries(data)
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 10);
+
+  if (!ranking.length) return message.reply("❌ No hay triunfos registrados todavía.");
+
+  const medalias = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
+  const lineas   = ranking.map(([, v], i) =>
+    `${medalias[i]} **${v.tag}** — ${v.total} triunfo${v.total === 1 ? "" : "s"}`
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setTitle("🏆 Top Triunfos del Mes")
+    .setDescription(lineas.join("\n"))
+    .setFooter({ text: "¡El que más acumule se lleva el premio! 🎁" })
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+async function handleMisTriunfos(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!mistriunfos")) return;
+
+  const data = loadTriunfos();
+  const target = message.mentions.members.first() || message.member;
+  const ud = data[target.id];
+
+  if (!ud || ud.total === 0)
+    return message.reply(`❌ ${target} no tiene triunfos registrados todavía.`);
+
+  // Posición en el ranking
+  const ranking = Object.entries(data).sort((a, b) => b[1].total - a[1].total);
+  const pos = ranking.findIndex(([id]) => id === target.id) + 1;
+
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setTitle(`🏆 Triunfos de ${target.user.tag}`)
+    .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
+    .setDescription(
+      `🎯 **Total de triunfos:** ${ud.total}\n` +
+      `📊 **Posición en el ranking:** #${pos} de ${ranking.length}`
+    )
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+module.exports = { handleTriunfos, ensurePinnedTriunfos, CANAL_TRIUNFOS_ID, handleTopTriunfos, handleMisTriunfos };

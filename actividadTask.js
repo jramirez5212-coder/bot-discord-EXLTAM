@@ -1,206 +1,114 @@
-const { EmbedBuilder, ActionRowBuilder,
-        ButtonBuilder, ButtonStyle }                    = require("discord.js");
-const { loadDataRush, saveDataRush, getUser, todayKey,
-        horaMinutoColombia }                            = require("../utils/dataManager");
-const { msToHours }                                     = require("../utils/format");
-// Alias para compatibilidad
-const loadData = loadDataRush;
-const saveData = saveDataRush;
-const { RUSH_ACTIVITY_ROLE_ID, STAFF_ROLE_ID,
-        RUSH_CANAL_ADVERTENCIAS_ID, RUSH_CANAL_LOGS_ID,
-        CANAL_SANCIONES_ID, RUSH_CANAL_AVISO_LINK,
-        GUILD_ID, DIA_ADV_1, DIA_ADV_2,
-        DIA_ADV_3, DIA_EXPULSA }                       = require("../config");
+const { EmbedBuilder }                              = require("discord.js");
+const { loadData, getUser, todayKey,
+        horaMinutoColombia, loadTops, saveTops,
+        saveData }                                  = require('./dataManager');
+const { msToHours }                                 = require('./format');
+const { CANAL_ACTIVIDAD_ID, CANAL_TOP_ID,
+        CANAL_LOGS_ID, ACTIVITY_ROLE_ID,
+        TOP_ROLE_ID, STAFF_ROLE_ID,
+        TOP_SIZE, GUILD_ID, LOGO_URL }              = require('./config');
 
-const CANAL_DECISION_EXPULSION_ID = "1517009855020273776";
+let embedActividadId = null;
+let embedTopId       = null;
+let lastTopWeek      = null;
+let guildCache       = null;
 
-let lastCheck = null;
-
-function startInactividadRushTask(client) {
-  console.log(`[INACTIVIDAD-RUSH] Bot prendido: ${todayKey()}`);
-  setInterval(() => checkMedianoche(client), 60 * 1000);
+let _activeSessions = null;
+function getActiveSessions() {
+  if (!_activeSessions)
+    _activeSessions = require('./voiceStateUpdate').activeSessions;
+  return _activeSessions;
 }
 
-async function checkMedianoche(client) {
-  const hora     = horaMinutoColombia();
-  const fechaHoy = todayKey();
-  if (hora !== "23:59" || lastCheck === fechaHoy) return;
-  lastCheck = fechaHoy;
-  console.log("[INACTIVIDAD-RUSH] Check de medianoche...");
+async function getGuild(client) {
+  if (!guildCache) {
+    guildCache = await client.guilds.fetch(GUILD_ID);
+    try {
+      await guildCache.members.fetch();
+    } catch(e) {
+      // Rate limited — esperar 30 segundos y reintentar una vez
+      console.log("[ACTIVIDAD] Rate limit en members.fetch, reintentando en 30s...");
+      await new Promise(r => setTimeout(r, 30000));
+      try { await guildCache.members.fetch(); } catch {}
+    }
+  }
+  return guildCache;
+}
 
+// Exportar para que actividadRushTask pueda reusar el mismo caché
+function setGuildCache(g) { guildCache = g; }
+function getGuildCache()  { return guildCache; }
+
+function startActividadTask(client) {
+  client.on("updateActividadEmbed", () => updateActividadEmbed(client));
+  client.on("voiceStateUpdate", () => {
+    updateActividadEmbed(client).catch(() => {});
+  });
+  setInterval(() => updateActividadEmbed(client), 30 * 1000);
+  setInterval(async () => {
+    try { if (guildCache) await guildCache.members.fetch(); } catch {}
+  }, 10 * 60 * 1000);
+  setTimeout(() => updateActividadEmbed(client), 35000);
+}
+
+// ── Embed actividad diaria ────────────────────────────────────────
+async function updateActividadEmbed(client) {
   try {
-    const guild        = await client.guilds.fetch(GUILD_ID);
-    await guild.members.fetch();
-    const data         = loadData();
-    const canalAdv     = await client.channels.fetch(RUSH_CANAL_ADVERTENCIAS_ID).catch(() => null);
-    const canalLogs    = await client.channels.fetch(RUSH_CANAL_LOGS_ID).catch(() => null);
-    const canalSancion = await client.channels.fetch(CANAL_SANCIONES_ID).catch(() => null);
+    const guild = await getGuild(client);
+    const canal = await client.channels.fetch(CANAL_ACTIVIDAD_ID).catch(() => null);
+    if (!canal) return;
 
+    const data           = loadData();
+    const hoy            = todayKey();
+    const activeSessions = getActiveSessions();
+    const ahora          = Date.now();
+
+    // Usar ACTIVITY_ROLE_ID — el rol que cuenta horas
     const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(RUSH_ACTIVITY_ROLE_ID) && !m.user.bot
+      m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot
     );
 
-    const ahora_ms = Date.now();
+    const enVoz  = [];
+    const fuera  = [];
 
     for (const [id, member] of miembros) {
-      const userData = getUser(data, id);
-
-      if (!userData.lastSeen && !userData.botFirstSeen) {
-        userData.botFirstSeen = Date.now();
-        continue;
+      const sesion = activeSessions.get(id);
+      const sesionTs = sesion && !sesion.isRush ? sesion.startMs : null;
+      if (sesionTs) {
+        enVoz.push({ member, num: 0 });
+      } else {
+        fuera.push({ member, num: 0 });
       }
-
-      const referencia = userData.lastSeen || userData.botFirstSeen;
-      const diasSin    = Math.floor((ahora_ms - referencia) / (24 * 60 * 60 * 1000));
-
-      // Para RUSH: cumplió si estuvo en voz HOY (lastSeen es de hoy)
-      const lastSeenDate = userData.lastSeen
-        ? new Date(userData.lastSeen).toLocaleDateString("en-CA", { timeZone: "America/Bogota" })
-        : null;
-      const cumplioHoy = lastSeenDate === fechaHoy;
-      const excusado   = global.isExcused && global.isExcused(id);
-
-      // Log diario simplificado para RUSH (sin horas)
-      if (canalLogs) {
-        const logEmbed = new EmbedBuilder()
-          .setColor(cumplioHoy ? 0x39FF14 : 0xe74c3c)
-          .setThumbnail(member.user.displayAvatarURL())
-          .setTitle(`${cumplioHoy ? "✅" : "❌"} ${member.user.username} — RUSH`)
-          .addFields(
-            { name: "📅 Fecha",           value: fechaHoy,      inline: true },
-            { name: "📉 Días sin entrar", value: `${diasSin}d`, inline: true },
-          )
-          .setTimestamp();
-        try { await canalLogs.send({ embeds: [logEmbed] }); } catch {}
-      }
-
-      if (cumplioHoy) {
-        userData.advertencias  = 0;
-        userData.botFirstSeen  = Date.now();
-        if (userData.lastSeen) userData.botFirstSeen = userData.lastSeen;
-        continue;
-      }
-      if (excusado) continue;
-
-      // Aviso diario en canal de advertencias con link al canal
-      if (diasSin >= 1 && canalAdv) {
-        try {
-          await canalAdv.send(
-            `${member} hoy no entraste, recuerda que si no entras manda ${RUSH_CANAL_AVISO_LINK}`
-          );
-        } catch {}
-      }
-
-      if (!userData.advertencias) userData.advertencias = 0;
-
-      // Día 1 — Advertencia 1
-      if (diasSin === DIA_ADV_1 && userData.advertencias < 1) {
-        userData.advertencias = 1;
-        await enviarSancion(member, canalSancion, 1, diasSin,
-          `Llevas **${diasSin} día** sin conectarte al canal de voz.\nEsta es tu **primera advertencia**.`,
-          0xf39c12, "⚠️");
-        await enviarDM(member, diasSin, 1, "Esta es tu primera advertencia por inactividad.");
-      }
-      // Día 3 — Advertencia 2
-      else if (diasSin === DIA_ADV_2 && userData.advertencias < 2) {
-        userData.advertencias = 2;
-        await enviarSancion(member, canalSancion, 2, diasSin,
-          `Llevas **${diasSin} días** sin conectarte.\nEsta es tu **segunda advertencia**.\nSi no te conectas pronto perderás tu rol.`,
-          0xe67e22, "🚨");
-        await enviarDM(member, diasSin, 2, "Esta es tu segunda advertencia. Conéctate pronto o perderás tu rol.");
-      }
-      // Día 5 — Advertencia final
-      else if (diasSin === DIA_ADV_3 && userData.advertencias < 3) {
-        userData.advertencias = 3;
-        await enviarSancion(member, canalSancion, 3, diasSin,
-          `Llevas **${diasSin} días** sin conectarte.\n🚨 **ÚLTIMA ADVERTENCIA** — Si mañana no te conectas serás **expulsado del rol**.`,
-          0xe74c3c, "🚨");
-        await enviarDM(member, diasSin, 3, "🚨 ÚLTIMA ADVERTENCIA. Si no te conectas mañana perderás tu rol definitivamente.");
-      }
-      // Día 6 — Pedir confirmación al staff antes de expulsar
-      else if (diasSin >= DIA_EXPULSA && !userData.pendienteExpulsion) {
-        userData.pendienteExpulsion = true;
-
-        const canalDecision = await client.channels.fetch(CANAL_DECISION_EXPULSION_ID).catch(() => null);
-        if (canalDecision) {
-          const embed = new EmbedBuilder()
-            .setColor(0xe74c3c)
-            .setTitle("🚫 ¿Expulsar del Rol de Actividad?")
-            .setThumbnail(member.user.displayAvatarURL())
-            .setDescription(
-              `**${member.user.tag}** lleva **${diasSin} días** sin actividad y agotó sus 3 advertencias.\n\n` +
-              `Staff: decide qué hacer con este miembro.`
-            )
-            .addFields(
-              { name: "⚠️ Advertencias",  value: "3 / 3",       inline: true },
-              { name: "📉 Días inactivo", value: `${diasSin}d`,  inline: true },
-              { name: "📅 Fecha",         value: fechaHoy,       inline: true },
-            )
-            .setFooter({ text: `RUSH • ID: ${member.id}` })
-            .setTimestamp();
-
-          const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`expulsar_inactivo:${member.id}`)
-              .setLabel("Expulsar del rol")
-              .setStyle(ButtonStyle.Danger)
-              .setEmoji("🚫"),
-            new ButtonBuilder()
-              .setCustomId(`restablecer_inactivo:${member.id}`)
-              .setLabel("Restablecer advertencias")
-              .setStyle(ButtonStyle.Success)
-              .setEmoji("♻️"),
-          );
-
-          try {
-            await canalDecision.send({
-              content: `<@&${STAFF_ROLE_ID}> decisión pendiente sobre ${member}.`,
-              embeds:  [embed],
-              components: [row],
-            });
-          } catch {}
-        }
-      }
-
-      if (userData.lastSeen) userData.botFirstSeen = userData.lastSeen;
     }
 
-    saveData(data);
-    console.log("[INACTIVIDAD-RUSH] Completado.");
+    // Numerar
+    const listaVoz   = enVoz.length  ? enVoz.map((e, i)  => `${i+1}. ${e.member} 🟢`).join("\n") : "_Nadie en canal de voz_";
+    const listaFuera = fuera.length  ? fuera.map((e, i) => `${enVoz.length+i+1}. ${e.member}`).join("\n")  : "_Todos están en voz_";
+
+    const embed = new EmbedBuilder()
+      .setTitle("📋 Plantilla Comunidad — Presencia")
+      .setColor(0xFFD700)
+      .setThumbnail(LOGO_URL)
+      .addFields(
+        { name: `🟢 EN CANAL DE VOZ (${enVoz.length})`,  value: listaVoz.slice(0,1000),   inline: false },
+        { name: `🔴 FUERA (${fuera.length})`,            value: listaFuera.slice(0,1000), inline: false },
+      )
+      .setFooter({ text: `Colombia (UTC-5) • actualizado a las ${horaMinutoColombia()}` })
+      .setTimestamp();
+
+    if (embedActividadId) {
+      try {
+        const msg = await canal.messages.fetch(embedActividadId);
+        await msg.edit({ embeds: [embed] });
+        return;
+      } catch { embedActividadId = null; }
+    }
+    const msg = await canal.send({ embeds: [embed] });
+    embedActividadId = msg.id;
+
   } catch (err) {
-    console.error("[INACTIVIDAD-RUSH] Error:", err);
+    console.error("[ACTIVIDAD] Error:", err.message);
   }
 }
 
-async function enviarSancion(member, canal, numero, diasSin, mensaje, color, emoji) {
-  if (!canal) return;
-  try {
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setTitle(`${emoji} Advertencia ${numero}/3 — RUSH — ${member.user.username}`)
-      .setThumbnail(member.user.displayAvatarURL())
-      .setDescription(`${member}\n\n${mensaje}`)
-      .addFields(
-        { name: "⚠️ Advertencia nº", value: `${numero} / 3`, inline: true },
-        { name: "📉 Días inactivo",  value: `${diasSin}d`,   inline: true },
-      )
-      .setTimestamp()
-      .setFooter({ text: `RUSH • ID: ${member.id}` });
-    await canal.send({ embeds: [embed] });
-  } catch (err) { console.error("[SANCION] Error:", err); }
-}
-
-async function enviarDM(member, diasSin, numAdv, extra) {
-  try {
-    await member.send({ embeds: [new EmbedBuilder()
-      .setColor(numAdv === 3 ? 0xe74c3c : 0xe67e22)
-      .setTitle(`⚠️ Advertencia ${numAdv}/3 de Inactividad`)
-      .setDescription(
-        `Hola **${member.user.username}**,\n\n` +
-        `Llevas **${diasSin} día(s)** sin conectarte.\n\n${extra}\n\n¡Te esperamos! 🎙️`
-      )
-      .setTimestamp()] });
-  } catch {}
-}
-
-module.exports = { startInactividadRushTask };
+module.exports = { startActividadTask, updateActividadEmbed, getGuildCache, setGuildCache };

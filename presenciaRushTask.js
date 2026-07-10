@@ -1,278 +1,99 @@
-const { EmbedBuilder }                              = require("discord.js");
-const { loadDataRush, saveDataRush, getUser, todayKey,
-        horaMinutoColombia, loadTopsRush, saveTopsRush } = require("../utils/dataManager");
-const { msToHours }                                 = require("../utils/format");
-const { RUSH_CANAL_ACTIVIDAD_ID, RUSH_CANAL_TOP_ID,
-        RUSH_CANAL_LOGS_ID, RUSH_ACTIVITY_ROLE_ID,
-        TOP_ROLE_ID, STAFF_ROLE_ID,
-        TOP_SIZE, GUILD_ID, LOGO_URL }              = require("../config");
+const { EmbedBuilder } = require("discord.js");
+const { RUSH_ACTIVITY_ROLE_ID, GUILD_ID, LOGO_URL, VOICE_CHANNELS_ALLOWED } = require('./config');
 
-// Alias para compatibilidad
-const loadData = loadDataRush;
-const saveData = saveDataRush;
-const loadTops = loadTopsRush;
-const saveTops = saveTopsRush;
+const CANAL_PRESENCIA_RUSH = "1518493643214815252";
+let presenciaMsgId = null;
 
-let embedActividadRushId = null;
-let embedTopRushId       = null;
-let lastTopWeekRush      = null;
-let guildCacheRush       = null;
-
-let _activeSessions = null;
-function getActiveSessions() {
-  if (!_activeSessions)
-    _activeSessions = require("../events/voiceStateUpdate").activeSessions;
-  return _activeSessions;
+function colombiaTime() {
+  return new Date().toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit" });
+}
+function colombiaDate() {
+  return new Date().toLocaleDateString("es-CO", { timeZone: "America/Bogota" });
 }
 
-async function getGuild(client) {
-  if (!guildCacheRush) {
-    // Intentar reutilizar el caché de ROLAS para no hacer doble fetch
-    const { getGuildCache } = require("./actividadTask");
-    const cacheRolas = getGuildCache();
-    if (cacheRolas) {
-      guildCacheRush = cacheRolas;
-      return guildCacheRush;
-    }
-    guildCacheRush = await client.guilds.fetch(GUILD_ID);
-    await guildCacheRush.members.fetch();
-  }
-  return guildCacheRush;
-}
-
-function startActividadRushTask(client) {
-  client.on("updateActividadEmbed", () => updateEmbeds(client));
-  setInterval(() => updateEmbeds(client), 30 * 1000);
-  setInterval(async () => {
-    try { if (guildCacheRush) await guildCacheRush.members.fetch(); } catch {}
-  }, 10 * 60 * 1000);
-  setInterval(() => checkTopSemanal(client), 60 * 1000);
-  setTimeout(() => updateEmbeds(client), 5000);
-}
-
-async function updateEmbeds(client) {
-  await updateActividadEmbed(client);
-  await updateTopEmbed(client);
-}
-
-// ── Embed actividad diaria ────────────────────────────────────────
-async function updateActividadEmbed(client) {
+async function updatePresenciaRush(client) {
   try {
-    const guild = await getGuild(client);
-    const canal = await client.channels.fetch(RUSH_CANAL_ACTIVIDAD_ID).catch(() => null);
+    const guild = await client.guilds.fetch(GUILD_ID);
+    await guild.members.fetch().catch(() => {});
+
+    const miembros = guild.members.cache.filter(m =>
+      m.roles.cache.has(RUSH_ACTIVITY_ROLE_ID) && !m.user.bot
+    );
+
+    const enVoz    = [];
+    const fuera    = [];
+
+    const { loadDataRush, saveDataRush, getUser } = require('./dataManager');
+    const data = loadDataRush();
+    let changed = false;
+
+    for (const [, member] of miembros) {
+      const enCanalPermitido = member.voice.channelId &&
+        VOICE_CHANNELS_ALLOWED.includes(member.voice.channelId);
+      if (enCanalPermitido) {
+        // Actualizar lastSeen para el sistema de inactividad
+        const ud = getUser(data, member.id);
+        ud.lastSeen = Date.now();
+        changed = true;
+        enVoz.push(member);
+      } else {
+        fuera.push(member);
+      }
+    }
+    if (changed) saveDataRush(data);
+
+    const listaVoz   = enVoz.length  ? enVoz.map((m, i)  => `${i+1}. ${m}`).join("\n") : "_Nadie en canal de voz_";
+    const listaFuera = fuera.length  ? fuera.map((m, i) => `${enVoz.length+i+1}. ${m}`).join("\n") : "_Todos están activos_";
+
+    const embed = new EmbedBuilder()
+      .setColor(0xFFD700)
+      .setTitle("📋 Plantilla Bandas — Presencia")
+      .setThumbnail(LOGO_URL)
+      .addFields(
+        { name: `🟢 EN CANAL DE VOZ (${enVoz.length})`,   value: listaVoz,   inline: false },
+        { name: `🔴 FUERA (${fuera.length})`,              value: listaFuera, inline: false },
+      )
+      .setFooter({ text: `${colombiaDate()} • Colombia (UTC-5) • actualizado a las ${colombiaTime()}` })
+      .setTimestamp();
+
+    const canal = await client.channels.fetch(CANAL_PRESENCIA_RUSH).catch(() => null);
     if (!canal) return;
 
-    const data           = loadData();
-    const hoy            = todayKey();
-    const activeSessions = getActiveSessions();
-    const ahora          = Date.now();
-
-    // Usar RUSH_ACTIVITY_ROLE_ID — el rol que cuenta horas
-    const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(RUSH_ACTIVITY_ROLE_ID) && !m.user.bot
-    );
-
-    const lista = [];
-    for (const [id, member] of miembros) {
-      const userData = getUser(data, id);
-      const guardado = userData.days?.[hoy]?.totalMs || 0;
-      const sesion   = activeSessions.get(id);
-      const sesionTs = sesion && sesion.isRush ? sesion.startMs : (userData.sessionStart || null);
-      const enVivo   = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
-      lista.push({ member, msTotal: guardado + enVivo, enVivo: enVivo > 0 });
-    }
-    lista.sort((a, b) => b.msTotal - a.msTotal);
-
-    let desc = "";
-    lista.forEach(({ member, msTotal, enVivo }, i) => {
-      desc += `**${i + 1}.** ${member} ${enVivo ? "🔴" : ""} 📅 Día: \`${hoy}\` ⏰ Total de horas: \`${msToHours(msTotal)}\`\n`;
-    });
-    if (!desc) desc = "*Nadie ha estado activo hoy.*";
-
-    const embed = new EmbedBuilder()
-      .setTitle("📊 Actividad de Miembros RUSH — Voz / Radio")
-      .setColor(0x39FF14)
-      .setThumbnail(LOGO_URL)
-      .setDescription(desc.slice(0, 4000))
-      .setFooter({ text: "🔴 en voz ahora • Colombia (UTC-5)" })
-      .setTimestamp();
-
-    if (embedActividadRushId) {
+    if (presenciaMsgId) {
       try {
-        const msg = await canal.messages.fetch(embedActividadRushId);
+        const msg = await canal.messages.fetch(presenciaMsgId);
         await msg.edit({ embeds: [embed] });
         return;
-      } catch { embedActividadRushId = null; }
+      } catch { presenciaMsgId = null; }
     }
+
+    // Buscar mensaje existente del bot
+    const msgs = await canal.messages.fetch({ limit: 10 });
+    const existing = msgs.find(m => m.author.id === client.user.id && m.embeds.length > 0);
+    if (existing) {
+      presenciaMsgId = existing.id;
+      await existing.edit({ embeds: [embed] });
+      return;
+    }
+
     const msg = await canal.send({ embeds: [embed] });
-    embedActividadRushId = msg.id;
-
-  } catch (err) {
-    console.error("[ACTIVIDAD] Error:", err.message);
+    presenciaMsgId = msg.id;
+  } catch(e) {
+    console.error("[PRESENCIA-RUSH] Error:", e.message);
   }
 }
 
-// ── Embed top en vivo ─────────────────────────────────────────────
-async function updateTopEmbed(client) {
-  try {
-    const guild    = await getGuild(client);
-    const canalTop = await client.channels.fetch(RUSH_CANAL_TOP_ID).catch(() => null);
-    if (!canalTop) return;
+function startPresenciaRushTask(client) {
+  // Actualizar cada 30 segundos
+  setTimeout(() => updatePresenciaRush(client), 5000);
+  setInterval(() => updatePresenciaRush(client), 30 * 1000);
 
-    const data           = loadData();
-    const activeSessions = getActiveSessions();
-    const ahora          = Date.now();
-
-    // Top usa RUSH_ACTIVITY_ROLE_ID para contar horas correctamente
-    // TOP_ROLE_ID es solo el rol que se da al ganador
-    const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(RUSH_ACTIVITY_ROLE_ID) && !m.user.bot
-    );
-
-    const ranking = [];
-    for (const [id, member] of miembros) {
-      const ud     = getUser(data, id);
-      const sesion = activeSessions.get(id);
-      const sesionTs = sesion && sesion.isRush ? sesion.startMs : (ud.sessionStart || null);
-      const enVivo = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
-      ranking.push({
-        member,
-        weekMs:  (ud.weekMs || 0) + enVivo,
-        totalMs: ud.totalMs || 0,
-        enVivo:  enVivo > 0,
-      });
-    }
-    ranking.sort((a, b) => b.weekMs - a.weekMs);
-
-    const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
-    let topText = "";
-    ranking.slice(0, TOP_SIZE).forEach(({ member, weekMs, totalMs, enVivo }, i) => {
-      topText +=
-        `${medals[i]} **${member.user.tag}** ${enVivo ? "🔴" : ""}\n` +
-        `┣ Esta semana: \`${msToHours(weekMs)}\`\n` +
-        `┗ Total: \`${msToHours(totalMs)}\`\n\n`;
-    });
-    if (!topText) topText = "*Sin datos aún.*";
-
-    const embed = new EmbedBuilder()
-      .setTitle(`🏆 Top ${TOP_SIZE} — Semana en Curso`)
-      .setColor(0x39FF14)
-      .setThumbnail(LOGO_URL)
-      .setDescription(topText)
-      .setFooter({ text: "🔴 en voz ahora • Se actualiza cada 30s" })
-      .setTimestamp();
-
-    if (embedTopRushId) {
-      try {
-        const msg = await canalTop.messages.fetch(embedTopRushId);
-        await msg.edit({ embeds: [embed] });
-        return;
-      } catch { embedTopRushId = null; }
-    }
-    const msg = await canalTop.send({ embeds: [embed] });
-    embedTopRushId = msg.id;
-
-  } catch (err) {
-    console.error("[TOP EMBED] Error:", err.message);
-  }
-}
-
-// ── Top semanal (lunes 00:00) ─────────────────────────────────────
-async function checkTopSemanal(client) {
-  const hora  = horaMinutoColombia();
-  const fecha = new Date().toLocaleDateString("en-US", {
-    timeZone: "America/Bogota", weekday: "long",
+  // Actualizar también cuando alguien entra o sale de voz
+  client.on("voiceStateUpdate", () => {
+    updatePresenciaRush(client).catch(() => {});
   });
-  if (hora !== "00:01" || fecha !== "Monday") return;
-  const semanaActual = todayKey();
-  if (lastTopWeekRush === semanaActual) return;
-  lastTopWeekRush = semanaActual;
-  console.log("[TOP] Ejecutando top semanal...");
 
-  try {
-    const guild = await getGuild(client);
-    await guildCacheRush.members.fetch();
-    const data     = loadData();
-    const canalTop = await client.channels.fetch(RUSH_CANAL_TOP_ID).catch(() => null);
-    const canalLog = await client.channels.fetch(RUSH_CANAL_LOGS_ID).catch(() => null);
-
-    // Usar RUSH_ACTIVITY_ROLE_ID para el ranking
-    const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(RUSH_ACTIVITY_ROLE_ID) && !m.user.bot
-    );
-
-    const ranking = [];
-    for (const [id, member] of miembros) {
-      const ud = getUser(data, id);
-      ranking.push({ member, id, weekMs: ud.weekMs || 0, userData: ud });
-    }
-    ranking.sort((a, b) => b.weekMs - a.weekMs);
-    const top = ranking.slice(0, TOP_SIZE);
-
-    // Quitar rol TOP a todos los que lo tienen
-    for (const [, member] of miembros) {
-      if (member.roles.cache.has(TOP_ROLE_ID)) {
-        try { await member.roles.remove(TOP_ROLE_ID); } catch {}
-      }
-    }
-
-    const tops     = loadTops();
-    const medals   = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
-    const ascensos = [];
-    let ganadores  = "";
-
-    for (let i = 0; i < top.length; i++) {
-      const { member, id, weekMs, userData } = top[i];
-      try { await member.roles.add(TOP_ROLE_ID); } catch {}
-      userData.topsGanados = (userData.topsGanados || 0) + 1;
-      if (userData.topsGanados >= 2 && (userData.diasSeguidos || 0) >= 5)
-        ascensos.push({ member, topsGanados: userData.topsGanados });
-      tops.push({ userId: id, semana: semanaActual, puesto: i + 1, weekMs });
-      ganadores += `${medals[i]} ${member} — \`${msToHours(weekMs)}\`\n`;
-    }
-
-    saveTops(tops);
-    for (const id in data) {
-      data[id].weekMs = 0;
-      // Resetear sessionStart para que no cuente horas viejas en la nueva semana
-      if (data[id].sessionStart) {
-        data[id].sessionStart = Date.now();
-      }
-    }
-    saveData(data);
-    embedTopRushId = null;
-
-    if (canalTop && ganadores) {
-      await canalTop.send({
-        content: `<@&${TOP_ROLE_ID}> 🎉`,
-        embeds: [new EmbedBuilder()
-          .setTitle("🎉 ¡Ganadores del Top Semanal!")
-          .setColor(0xf1c40f)
-          .setThumbnail(LOGO_URL)
-          .setDescription(`**¡Felicitaciones a los más activos de la semana!** 🏆\n\n${ganadores}\n¡Sigan así! 🎖️`)
-          .addFields({ name: "📅 Semana", value: semanaActual, inline: true })
-          .setTimestamp()
-          .setFooter({ text: "Nueva semana, nueva oportunidad 💪" })]
-      });
-    }
-
-    for (const { member, topsGanados } of ascensos) {
-      if (canalLog) {
-        await canalLog.send({ embeds: [new EmbedBuilder()
-          .setColor(0xf1c40f)
-          .setTitle("⭐ Posible Ascenso")
-          .setDescription(
-            `${member} ha ganado **${topsGanados} tops** y tiene actividad constante.\n\n` +
-            `<@&${STAFF_ROLE_ID}> este miembro **merece un ascenso**. 🎖️`
-          )
-          .setTimestamp()] });
-      }
-    }
-
-    console.log("[TOP] Completado.");
-  } catch (err) {
-    console.error("[TOP] Error:", err.message);
-  }
+  console.log("[PRESENCIA-RUSH] Sistema de presencia iniciado.");
 }
 
-module.exports = { startActividadRushTask, updateActividadEmbed };
+module.exports = { startPresenciaRushTask };

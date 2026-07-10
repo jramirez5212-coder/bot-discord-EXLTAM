@@ -12,40 +12,40 @@ const fs   = require("fs");
 const path = require("path");
 const https = require("https");
 
-const voiceEvent                   = require("./src/events/voiceStateUpdate");
-const { handleHoras }              = require("./src/commands/horas");
-const { handleHorasRush }          = require("./src/commands/horasRush");
-const { handleAnuncios }           = require("./src/commands/anuncios");
+const voiceEvent                   = require('./voiceStateUpdate');
+const { handleHoras }              = require('./horas');
+const { handleHorasRush }          = require('./horasRush');
+const { handleAnuncios }           = require('./anuncios');
 const { handleInactividad,
         handleInactividadButton,
         handleInactividadModal,
         handleRegresesButton,
-        isExcused }                = require("./src/commands/inactividad");
+        isExcused }                = require('./inactividad');
 const { handleTorneo,
         handleTorneoInteraction,
-        recoverTorneoRoles }       = require("./src/commands/torneo");
+        recoverTorneoRoles }       = require('./torneo');
 const { handleAdmin,
-        handleChiteadoButton }      = require("./src/commands/admin");
+        handleChiteadoButton }      = require('./admin');
 const { handleNuevo,
         handleNuevoButton,
         handleTutorialButton,
         handleNuevoFotoSS,
         handleSSResultButton,
-        handleBandaButton }         = require("./src/commands/nuevo");
-const { handleTandas }             = require("./src/commands/tandas");
-const { handleInactividadDecision } = require("./src/commands/inactividadDecision");
-const { handleMigrarRoles }        = require("./src/commands/migrarRoles");
-const { handleComandosFijados, ensurePinnedCommands, COMANDOS_POR_CANAL } = require("./src/commands/comandosFijados");
-const { handleTriunfos, ensurePinnedTriunfos, CANAL_TRIUNFOS_ID, handleTopTriunfos, handleMisTriunfos } = require("./src/commands/triunfos");
-const { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMetio, handleArmarioAlertaButton } = require("./src/commands/armario");
-const { startActividadTask }       = require("./src/tasks/actividadTask");
-const { startActividadRushTask }   = require("./src/tasks/actividadRushTask");
-const { startPresenciaRushTask }   = require("./src/tasks/presenciaRushTask");
-const { startInactividadTask }     = require("./src/tasks/inactividadTask");
-const { startInactividadRushTask } = require("./src/tasks/inactividadRushTask");
-const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require("./src/tasks/calendarioTask");
-const { startCalendarioRushTask, handleInscripcionRushButton, EVENTOS: EVENTOS_RUSH } = require("./src/tasks/calendarioRushTask");
-const { initPanelEventos, handlePanelButton, handleEmbedCreator, handleAnuncioCmd, handleRecordatorio, handleEncuesta } = require("./src/commands/panelEventos");
+        handleBandaButton }         = require('./nuevo');
+const { handleTandas }             = require('./tandas');
+const { handleInactividadDecision } = require('./inactividadDecision');
+const { handleMigrarRoles }        = require('./migrarRoles');
+const { handleComandosFijados, ensurePinnedCommands, COMANDOS_POR_CANAL } = require('./comandosFijados');
+const { handleTriunfos, ensurePinnedTriunfos, CANAL_TRIUNFOS_ID, handleTopTriunfos, handleMisTriunfos } = require('./triunfos');
+const { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMetio, handleArmarioAlertaButton } = require('./armario');
+const { startActividadTask }       = require('./actividadTask');
+const { startActividadRushTask }   = require('./actividadRushTask');
+const { startPresenciaRushTask }   = require('./presenciaRushTask');
+const { startInactividadTask }     = require('./inactividadTask');
+const { startInactividadRushTask } = require('./inactividadRushTask');
+const { startCalendarioTask, handleInscripcionButton, EVENTOS } = require('./calendarioTask');
+const { startCalendarioRushTask, handleInscripcionRushButton, EVENTOS: EVENTOS_RUSH } = require('./calendarioRushTask');
+const { initPanelEventos, handlePanelButton, handleEmbedCreator, handleAnuncioCmd, handleRecordatorio, handleEncuesta } = require('./panelEventos');
 
 global.isExcused = isExcused;
 

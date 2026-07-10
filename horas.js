@@ -1,11 +1,8 @@
 const { EmbedBuilder }                                         = require("discord.js");
-const { loadDataRush, getUser, todayKey }                      = require('./dataManager');
+const { loadData, getUser, todayKey }                          = require('./dataManager');
 const { msToHours, lastNDays }                                 = require('./format');
-const { RUSH_ACTIVITY_ROLE_ID, TOP_ROLE_ID, TOP_SIZE,
-        GUILD_ID, LOGO_URL, RUSH_CANAL_CMD_HORAS }                  = require('./config');
-
-// Alias para compatibilidad con el código copiado de horas.js
-const loadData = loadDataRush;
+const { ACTIVITY_ROLE_ID, TOP_ROLE_ID, TOP_SIZE,
+        GUILD_ID, LOGO_URL, CANAL_CMD_HORAS }                  = require('./config');
 
 // Sesiones activas para calcular tiempo en vivo
 let _activeSessions = null;
@@ -14,14 +11,14 @@ function getActiveSessions() {
   return _activeSessions;
 }
 
-async function handleHorasRush(message, client) {
+async function handleHoras(message, client) {
   if (message.author.bot) return;
   const args    = message.content.trim().split(/\s+/);
   const comando = args[0].toLowerCase();
   if (!["!horas","!top"].includes(comando)) return;
 
-  // Solo en canal RUSH — si es otro canal, no hacer nada (puede ser canal ROLAS)
-  if (message.channel.id !== RUSH_CANAL_CMD_HORAS) return;
+  // Solo en canal ROLAS — si es otro canal, no hacer nada (puede ser canal RUSH)
+  if (message.channel.id !== CANAL_CMD_HORAS) return;
 
   const data           = loadData();
   const activeSessions = getActiveSessions();
@@ -30,7 +27,7 @@ async function handleHorasRush(message, client) {
   // ── !horas ────────────────────────────────────────────────────
   if (comando === "!horas") {
     const target = message.mentions.members.first() || message.member;
-    if (!target.roles.cache.has(RUSH_ACTIVITY_ROLE_ID))
+    if (!target.roles.cache.has(ACTIVITY_ROLE_ID))
       return message.reply("❌ Ese usuario no tiene el rol de actividad.");
 
     const userData = getUser(data, target.id);
@@ -38,7 +35,7 @@ async function handleHorasRush(message, client) {
     const hoy      = todayKey();
 
     // Calcular estado del usuario
-    const _ses = activeSessions.get(target.id); const sesionTs = _ses && _ses.isRush ? _ses.startMs : (userData.sessionStart || null);
+    const _ses = activeSessions.get(target.id); const sesionTs = _ses && !_ses.isRush ? _ses.startMs : (userData.sessionStart || null);
     const enVivo     = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
     const msHoy      = (userData.days?.[hoy]?.totalMs || 0) + enVivo;
     const estaEnVoz  = enVivo > 0;
@@ -84,13 +81,13 @@ async function handleHorasRush(message, client) {
     await guild.members.fetch();
 
     const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(RUSH_ACTIVITY_ROLE_ID) && !m.user.bot
+      m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot
     );
 
     const ranking = [];
     for (const [id, member] of miembros) {
       const ud     = getUser(data, id);
-      const _ses2 = activeSessions.get(id); const sesionTs = _ses2 && _ses2.isRush ? _ses2.startMs : (ud.sessionStart || null);
+      const _ses2 = activeSessions.get(id); const sesionTs = _ses2 && !_ses2.isRush ? _ses2.startMs : (ud.sessionStart || null);
       const enVivo = sesionTs ? Math.min(ahora - sesionTs, 12 * 60 * 60 * 1000) : 0;
       ranking.push({ member, weekMs: (ud.weekMs||0)+enVivo, totalMs: ud.totalMs||0, enVivo: enVivo>0 });
     }
@@ -117,4 +114,4 @@ async function handleHorasRush(message, client) {
   }
 }
 
-module.exports = { handleHorasRush };
+module.exports = { handleHoras };

@@ -1,503 +1,345 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle }                                         = require("discord.js");
-const { loadData, saveData, getUser, todayKey }                = require("../utils/dataManager");
-const { msToHours }                                            = require("../utils/format");
-const { ACTIVITY_ROLE_ID, STAFF_ROLE_ID, GUILD_ID,
-        LOGO_URL, CANAL_CMD_ADMIN, AFK_CHANNEL_ID }            = require("../config");
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require("discord.js");
+const fs   = require("fs");
+const path = require("path");
 
-const ROL_CHITEADO_ID = "1516258987320807536";
+const CANAL_LOGS_ROLAS_ID  = "1516259267374612500"; // canal donde Rolas Academy manda los mensajes
+const CANAL_ALERTAS_ID     = "1517620722833424394"; // canal donde van las alertas de armario
+const BOT_ROLAS_NAME      = "Rolas Academy";        // nombre del bot externo
+const DATA_FILE           = path.join(__dirname, "../../armario_data.json");
 
-function isAdmin(message) {
-  return message.member?.roles?.cache?.has(STAFF_ROLE_ID) ||
-         message.member?.permissions?.has(8n);
+// Umbral para alerta de "está sacando mucho"
+const ALERTA_UMBRAL = 6;
+
+// ── Persistencia ──────────────────────────────────────────────────────────────
+function loadArmario() {
+  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, "{}");
+  try { return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); } catch { return {}; }
+}
+function saveArmario(data) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 }
 
-function parseTime(str) {
-  let ms = 0;
-  const hours = str.match(/(\d+)h/i);
-  const mins  = str.match(/(\d+)m/i);
-  if (hours) ms += parseInt(hours[1]) * 60 * 60 * 1000;
-  if (mins)  ms += parseInt(mins[1])  * 60 * 1000;
-  return ms;
+function getUsuario(data, userId, tag) {
+  if (!data[userId]) data[userId] = { tag, armas: {}, dinero: { total: 0 }, hoy: {} };
+  if (!data[userId].hoy) data[userId].hoy = {};
+  data[userId].tag = tag;
+  return data[userId];
 }
 
-async function handleAdmin(message, client) {
-  if (message.author.bot) return;
-  const args    = message.content.trim().split(/\s+/);
-  const comando = args[0].toLowerCase();
+function fechaHoy() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+}
 
-  const adminCmds = [
-    "!addtime","!removetime","!sethoras","!resetuser","!resetweek",
-    "!syncvoz","!status","!sesiones","!forceupdate",
-    "!info","!setadv","!clearadv","!listactivos","!listinactivos",
-    "!chiteado","!torneostop","!reportetorneo"
-  ];
-  if (!adminCmds.includes(comando)) return;
-  if (!isAdmin(message)) return message.reply("❌ No tienes permiso.");
+// ── Parser de líneas del bot Rolas Academy ───────────────────────────────────
+// Formatos:
+// "@usuario saco N WEAPON_XXX de banda_exlatam (stock)"
+// "@usuario metio N WEAPON_XXX en banda_exlatam (stock)"
+// "@usuario saco N money de banda_exlatam (stock)"
+// "@usuario metio N money en banda_exlatam (stock)"
+// Parser compatible con ambos formatos:
+// "@usuario saco N ITEM de banda_exlatam (stock)"  ← formato Rolas Academy texto plano
+// "<@123456> saco N ITEM de banda_exlatam (stock)"  ← menciones Discord
+// Items pueden ser: WEAPON_SMG, corredera, metal, money, medikit, energizante_vip, etc.
+function parsearLinea(linea) {
+  // Intenta primero con mención Discord <@ID>
+  const regexMencion = /^<@!?(\d+)>\s+(saco|metio)\s+(\d+)\s+(\S+)\s+(?:de|en)\s+\S+\s+\((\d+)\)/i;
+  const matchMencion = linea.match(regexMencion);
+  if (matchMencion) {
+    return {
+      userId:   matchMencion[1],
+      username: null,
+      accion:   matchMencion[2].toLowerCase(),
+      cantidad: parseInt(matchMencion[3]),
+      item:     matchMencion[4].toUpperCase(),
+      stock:    parseInt(matchMencion[5]),
+    };
+  }
 
-  // Comandos sin restricción de canal
-  const sinRestriccion = ["!nuevo","!chiteado","!torneostop","!reportetorneo","!listactivos","!listinactivos"];
-  if (!sinRestriccion.includes(comando) && message.channel.id !== CANAL_CMD_ADMIN) {
-    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_ADMIN}>`);
-    setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
+  // Formato texto plano: @username saco N ITEM de/en banda_exlatam (stock)
+  // El item puede ser cualquier palabra: WEAPON_SMG, corredera, metal, money, etc.
+  const regexPlano = /^@(\S+)\s+(saco|metio)\s+(\d+)\s+(\S+)\s+(?:de|en)\s+\S+\s+\((\d+)\)/i;
+  const matchPlano = linea.match(regexPlano);
+  if (matchPlano) {
+    return {
+      userId:   null,
+      username: matchPlano[1].toLowerCase(),
+      accion:   matchPlano[2].toLowerCase(),
+      cantidad: parseInt(matchPlano[3]),
+      item:     matchPlano[4].toUpperCase(),
+      stock:    parseInt(matchPlano[5]),
+    };
+  }
+
+  return null;
+}
+
+// ── Handler principal ─────────────────────────────────────────────────────────
+async function handleArmarioLogs(message) {
+  if (message.channel.id !== CANAL_LOGS_ROLAS_ID) return;
+  // No filtramos por bot/webhook - aceptamos cualquier mensaje en este canal
+  // que tenga el formato de Rolas Academy
+  if (message.author.id === message.client.user.id) return; // ignorar mensajes del propio bot
+
+  // Debug completo
+  console.log(`[ARMARIO] Msg de "${message.author.username}" (bot:${message.author.bot}, webhook:${!!message.webhookId}, appId:${message.applicationId}):`);
+  console.log(`[ARMARIO] Contenido: ${message.content?.slice(0, 500)}`);
+
+  const lineas = message.content?.split("\n").filter(Boolean) || [];
+  if (!lineas.length) {
+    console.log("[ARMARIO] Sin líneas de texto, ignorando.");
     return;
   }
 
-  const data = loadData();
+  const data   = loadArmario();
+  const hoy    = fechaHoy();
+  const alertas = [];
 
-  // ── !addtime ─────────────────────────────────────────────────
-  if (comando === "!addtime") {
-    const target = message.mentions.members.first();
-    const tiempo = args[2];
-    if (!target || !tiempo) return message.reply("❌ Uso: `!addtime @usuario 2h30m`");
-    const ms = parseTime(tiempo);
-    if (!ms) return message.reply("❌ Tiempo inválido.");
-    const ud = getUser(data, target.id); const hoy = todayKey();
-    ud.totalMs += ms; ud.weekMs += ms;
-    if (!ud.days[hoy]) ud.days[hoy] = { totalMs: 0 };
-    ud.days[hoy].totalMs += ms;
-    saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Tiempo agregado")
-      .setDescription(`Se agregaron **${msToHours(ms)}** a ${target}\n📆 Semana: \`${msToHours(ud.weekMs)}\`\n🏆 Total: \`${msToHours(ud.totalMs)}\``)
-      .setTimestamp()] });
-  }
+  for (const linea of lineas) {
+    const parsed = parsearLinea(linea);
+    if (!parsed) continue;
 
-  // ── !removetime ──────────────────────────────────────────────
-  if (comando === "!removetime") {
-    const target = message.mentions.members.first();
-    const tiempo = args[2];
-    if (!target || !tiempo) return message.reply("❌ Uso: `!removetime @usuario 1h`");
-    const ms = parseTime(tiempo); if (!ms) return message.reply("❌ Tiempo inválido.");
-    const ud = getUser(data, target.id); const hoy = todayKey();
-    ud.totalMs = Math.max(0, ud.totalMs - ms); ud.weekMs = Math.max(0, ud.weekMs - ms);
-    if (ud.days[hoy]) ud.days[hoy].totalMs = Math.max(0, (ud.days[hoy].totalMs||0) - ms);
-    saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle("✅ Tiempo removido")
-      .setDescription(`Se removieron **${msToHours(ms)}** de ${target}\n📆 Semana: \`${msToHours(ud.weekMs)}\`\n🏆 Total: \`${msToHours(ud.totalMs)}\``)
-      .setTimestamp()] });
-  }
+    // Resolver userId y tag
+    let userId = parsed.userId;
+    let tag    = parsed.username || `<@${userId}>`;
 
-  // ── !sethoras ────────────────────────────────────────────────
-  if (comando === "!sethoras") {
-    const target = message.mentions.members.first();
-    const tiempo = args[2];
-    if (!target || !tiempo) return message.reply("❌ Uso: `!sethoras @usuario 5h`");
-    const ms = parseTime(tiempo);
-    const ud = getUser(data, target.id); const hoy = todayKey();
-    ud.totalMs = ms; ud.weekMs = ms;
-    if (!ud.days[hoy]) ud.days[hoy] = { totalMs: 0 };
-    ud.days[hoy].totalMs = ms; saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Horas establecidas")
-      .setDescription(`Horas de ${target} ajustadas a **${msToHours(ms)}**`).setTimestamp()] });
-  }
-
-  // ── !resetuser ───────────────────────────────────────────────
-  if (comando === "!resetuser") {
-    const target = message.mentions.members.first();
-    if (!target) return message.reply("❌ Uso: `!resetuser @usuario`");
-    data[target.id] = { totalMs:0, weekMs:0, lastSeen:null, days:{}, topsGanados:0, diasSeguidos:0, advertencias:0 };
-    saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0xe74c3c).setTitle("✅ Usuario reseteado")
-      .setDescription(`Todos los datos de ${target} fueron reseteados.`).setTimestamp()] });
-  }
-
-  // ── !resetweek ───────────────────────────────────────────────
-  if (comando === "!resetweek") {
-    const hoy = todayKey();
-    const ahora = Date.now();
-    let count = 0;
-
-    // Limpiar sesiones activas en memoria
-    const { activeSessions } = require("../events/voiceStateUpdate");
-    activeSessions.clear();
-
-    for (const id in data) {
-      data[id].weekMs = 0;
-      // Borrar horas del día de hoy
-      if (data[id].days?.[hoy]) data[id].days[hoy].totalMs = 0;
-      // Resetear sessionStart
-      if (data[id].sessionStart) data[id].sessionStart = ahora;
-      count++;
+    if (!userId && parsed.username) {
+      // Buscar miembro por username en el servidor
+      try {
+        await message.guild.members.fetch();
+        const member = message.guild.members.cache.find(m =>
+          m.user.username.toLowerCase() === parsed.username ||
+          m.user.tag.toLowerCase().startsWith(parsed.username) ||
+          m.displayName.toLowerCase() === parsed.username
+        );
+        if (member) {
+          userId = member.id;
+          tag    = member.user.tag;
+        } else {
+          // No encontrado: usar username como clave
+          userId = `username:${parsed.username}`;
+          tag    = parsed.username;
+        }
+      } catch {
+        userId = `username:${parsed.username}`;
+        tag    = parsed.username;
+      }
+    } else if (userId) {
+      try {
+        const member = await message.guild.members.fetch(userId).catch(() => null);
+        if (member) tag = member.user.tag;
+      } catch {}
     }
-    saveData(data);
-    client.emit("updateActividadEmbed");
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Semana reseteada")
-      .setDescription(`Se resetearon las horas semanales de **${count}** usuarios.`).setTimestamp()] });
-  }
 
-  // ── !syncvoz ─────────────────────────────────────────────────
-  if (comando === "!syncvoz") {
-    const { activeSessions } = require("../events/voiceStateUpdate");
-    const guild = await client.guilds.fetch(GUILD_ID); await guild.members.fetch();
-    activeSessions.clear();
-    const ahora = Date.now(); let synced = 0;
-    const miembros = guild.members.cache.filter(m =>
-      m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot &&
-      m.voice?.channelId && m.voice.channelId !== AFK_CHANNEL_ID
-    );
-    for (const [id] of miembros) {
-      const ud = getUser(data, id);
-      activeSessions.set(id, ud.sessionStart || ahora);
-      if (!ud.sessionStart) ud.sessionStart = ahora;
-      synced++;
-    }
-    saveData(data); client.emit("updateActividadEmbed");
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Voz sincronizada")
-      .setDescription(`Se sincronizaron **${synced}** sesiones activas.`).setTimestamp()] });
-  }
+    const ud = getUsuario(data, userId, tag);
+    const { item, accion, cantidad } = parsed;
 
-  // ── !status ──────────────────────────────────────────────────
-  if (comando === "!status") {
-    const { activeSessions } = require("../events/voiceStateUpdate");
-    const ahora = Date.now(); let desc = "";
-    for (const [id, ts] of activeSessions) {
-      const mins = Math.floor((ahora - ts) / 60000);
-      desc += `<@${id}> — \`${mins}m\` en sesión\n`;
-    }
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14)
-      .setTitle(`📊 Sesiones activas (${activeSessions.size})`)
-      .setDescription(desc || "*No hay sesiones activas.*").setTimestamp()] });
-  }
+    // Inicializar arma si no existe
+    if (!ud.armas[item]) ud.armas[item] = { saco: 0, metio: 0 };
+    if (!ud.hoy[hoy])    ud.hoy[hoy]   = {};
+    if (!ud.hoy[hoy][item]) ud.hoy[hoy][item] = { saco: 0, metio: 0 };
 
-  // ── !sesiones ────────────────────────────────────────────────
-  if (comando === "!sesiones") {
-    let desc = "";
-    for (const id in data) {
-      if (data[id].sessionStart) {
-        const mins = Math.floor((Date.now() - data[id].sessionStart) / 60000);
-        desc += `<@${id}> — sesión guardada hace \`${mins}m\`\n`;
+    // Registrar
+    if (item === "MONEY") {
+      if (!ud.dinero) ud.dinero = { total: 0 };
+      ud.dinero.total += accion === "saco" ? cantidad : -cantidad;
+    } else {
+      ud.armas[item][accion]       += cantidad;
+      ud.hoy[hoy][item][accion]    += cantidad;
+
+      // Verificar alerta si sacó 6 o más del mismo item hoy
+      if (accion === "saco") {
+        const totalHoySacado = ud.hoy[hoy][item].saco;
+        if (totalHoySacado >= ALERTA_UMBRAL && (totalHoySacado - parsed.cantidad) < ALERTA_UMBRAL) {
+          // Solo dispara la alerta la primera vez que cruza el umbral
+          alertas.push({
+            userId,
+            tag,
+            item,
+            total: totalHoySacado,
+          });
+        }
       }
     }
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14)
-      .setTitle("📋 Sesiones en JSON").setDescription(desc || "*Sin sesiones.*").setTimestamp()] });
   }
 
-  // ── !forceupdate ─────────────────────────────────────────────
-  if (comando === "!forceupdate") {
-    client.emit("updateActividadEmbed");
-    return message.reply("✅ Embed actualizado.");
-  }
+  saveArmario(data);
 
-  // ── !info @usuario ───────────────────────────────────────────
-  if (comando === "!info") {
-    const target = message.mentions.members.first();
-    if (!target) return message.reply("❌ Uso: `!info @usuario`");
-    const ud = getUser(data, target.id);
-
-    const joinedAt    = target.joinedAt ? `<t:${Math.floor(target.joinedAt.getTime()/1000)}:F>` : "Desconocido";
-    const creadoEn    = `<t:${Math.floor(target.user.createdAt.getTime()/1000)}:F>`;
-    const roles       = target.roles.cache.filter(r => r.id !== message.guild.id)
-                          .sort((a,b) => b.position - a.position)
-                          .map(r => `<@&${r.id}>`).slice(0,10).join(", ") || "*Sin roles*";
-
-    const embed = new EmbedBuilder()
-      .setColor(0x39FF14)
-      .setTitle(`📋 Info — ${target.user.tag}`)
-      .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
-      .addFields(
-        { name: "🆔 ID",                value: target.id,                                  inline: true },
-        { name: "👤 Usuario",           value: target.user.tag,                            inline: true },
-        { name: "🎭 Apodo",             value: target.nickname || "*Sin apodo*",           inline: true },
-        { name: "📅 Entró al servidor", value: joinedAt,                                   inline: false },
-        { name: "🗓️ Cuenta creada",     value: creadoEn,                                   inline: false },
-        { name: "🎖️ Roles",             value: roles,                                      inline: false },
-        { name: "⏰ Horas semana",      value: `\`${msToHours(ud.weekMs)}\``,              inline: true },
-        { name: "🏆 Total horas",       value: `\`${msToHours(ud.totalMs)}\``,             inline: true },
-        { name: "⚠️ Advertencias",      value: `\`${ud.advertencias||0}/3\``,              inline: true },
-        { name: "🔥 Racha",             value: `\`${ud.diasSeguidos||0}d\``,               inline: true },
-        { name: "🎮 Torneos jugados",   value: `\`${ud.torneosJugados||0}\``,              inline: true },
-        { name: "🥇 Tops ganados",      value: `\`${ud.topsGanados||0}\``,                 inline: true },
-        { name: "👁️ Última vez en voz", value: ud.lastSeen
-            ? `<t:${Math.floor(ud.lastSeen/1000)}:R>` : "*Nunca*",                         inline: false },
-      )
-      .setTimestamp();
-    return message.reply({ embeds: [embed] });
-  }
-
-  // ── !setadv @usuario 2 ───────────────────────────────────────
-  if (comando === "!setadv") {
-    const target = message.mentions.members.first();
-    const num    = parseInt(args[2]);
-    if (!target || isNaN(num) || num < 0 || num > 3)
-      return message.reply("❌ Uso: `!setadv @usuario 0-3`");
-    const ud = getUser(data, target.id);
-    ud.advertencias = num; saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Advertencias actualizadas")
-      .setDescription(`${target} ahora tiene **${num}/3** advertencias.`).setTimestamp()] });
-  }
-
-  // ── !clearadv @usuario ───────────────────────────────────────
-  if (comando === "!clearadv") {
-    const target = message.mentions.members.first();
-    if (!target) return message.reply("❌ Uso: `!clearadv @usuario`");
-    const ud = getUser(data, target.id);
-    ud.advertencias = 0; saveData(data);
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14).setTitle("✅ Advertencias borradas")
-      .setDescription(`Se borraron las advertencias de ${target}.`).setTimestamp()] });
-  }
-
-  // ── !listactivos ─────────────────────────────────────────────
-  if (comando === "!listactivos") {
-    const guild = await client.guilds.fetch(GUILD_ID); await guild.members.fetch();
-    const miembros = guild.members.cache.filter(m => m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot);
-    const lista = [];
-    for (const [id, member] of miembros) {
-      const ud = getUser(data, id);
-      lista.push({ member, weekMs: ud.weekMs||0, totalMs: ud.totalMs||0, torneosJugados: ud.torneosJugados||0 });
+  // Mandar alertas al canal de alertas
+  for (const alerta of alertas) {
+    try {
+      const canalAlertas = await message.client.channels.fetch(CANAL_ALERTAS_ID).catch(() => message.channel);
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(`armario_ok:${alerta.userId}:${alerta.item}`)
+          .setLabel("✅ Está bien, es normal")
+          .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+          .setCustomId(`armario_rev:${alerta.userId}:${alerta.item}`)
+          .setLabel("⚠️ Revisar este caso")
+          .setStyle(ButtonStyle.Danger),
+      );
+      await canalAlertas.send({
+        embeds: [new EmbedBuilder()
+          .setColor(0xe74c3c)
+          .setTitle("🚨 Alerta de Armario")
+          .setDescription(
+            `<@${alerta.userId}> ya sacó **${alerta.total} ${alerta.item}** hoy.\n\n` +
+            `¿Qué hacemos? (Solo Staff puede responder)`
+          )
+          .addFields(
+            { name: "👤 Usuario",     value: alerta.tag,          inline: true },
+            { name: "🔫 Item",        value: alerta.item,         inline: true },
+            { name: "📦 Sacados hoy", value: `${alerta.total}`,   inline: true },
+          )
+          .setTimestamp()],
+        components: [row]
+      });
+    } catch (e) {
+      console.error("[ARMARIO] Error alerta:", e.message);
     }
-    lista.sort((a,b) => b.weekMs - a.weekMs);
-
-    const medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
-    let desc = "";
-    lista.slice(0,10).forEach(({ member, weekMs, totalMs }, i) => {
-      const recomendacion = i < 3 ? " 🔺 *Candidato a ascenso*" : "";
-      desc += `${medals[i]} **${member.user.tag}**${recomendacion}\n┣ Semana: \`${msToHours(weekMs)}\` | Total: \`${msToHours(totalMs)}\`\n\n`;
-    });
-
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0x39FF14)
-      .setTitle("📊 Top 10 más activos")
-      .setDescription(desc || "*Sin datos.*")
-      .setFooter({ text: "🔺 Top 3 son candidatos a ascenso de rango" })
-      .setTimestamp()] });
-  }
-
-  // ── !listinactivos ───────────────────────────────────────────
-  if (comando === "!listinactivos") {
-    const guild = await client.guilds.fetch(GUILD_ID); await guild.members.fetch();
-    const miembros = guild.members.cache.filter(m => m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot);
-    const ahora = Date.now(); const lista = [];
-    for (const [id, member] of miembros) {
-      const ud = getUser(data, id);
-      const ref = ud.botFirstSeen || ud.lastSeen;
-      const dias = ref ? Math.floor((ahora - ref) / (24*60*60*1000)) : 0;
-      lista.push({ member, dias, advertencias: ud.advertencias||0 });
-    }
-    lista.sort((a,b) => b.dias - a.dias);
-
-    let desc = "";
-    lista.slice(0,10).forEach(({ member, dias, advertencias }) => {
-      const emoji = advertencias >= 3 ? "🚨" : advertencias >= 2 ? "⚠️" : advertencias >= 1 ? "🟡" : "⬜";
-      desc += `${emoji} **${member.user.tag}** — \`${dias}d sin entrar\` | Adv: \`${advertencias}/3\`\n`;
-    });
-
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0xe74c3c)
-      .setTitle("📉 Top 10 más inactivos")
-      .setDescription(desc || "*Todos activos.*")
-      .setFooter({ text: "🚨 En peligro de perder el rol" })
-      .setTimestamp()] });
-  }
-
-  // ── !torneostop ──────────────────────────────────────────────
-  if (comando === "!torneostop") {
-    const guild = await client.guilds.fetch(GUILD_ID); await guild.members.fetch();
-    const miembros = guild.members.cache.filter(m => m.roles.cache.has(ACTIVITY_ROLE_ID) && !m.user.bot);
-    const lista = [];
-    for (const [id, member] of miembros) {
-      const ud = getUser(data, id);
-      if ((ud.torneosJugados||0) > 0) lista.push({ member, torneos: ud.torneosJugados||0 });
-    }
-    lista.sort((a,b) => b.torneos - a.torneos);
-
-    const medals = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
-    let desc = "";
-    lista.slice(0,10).forEach(({ member, torneos }, i) => {
-      desc += `${medals[i]} **${member.user.tag}** — \`${torneos} torneos\`\n`;
-    });
-
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0xf1c40f)
-      .setTitle("🏆 Top participantes en torneos")
-      .setDescription(desc || "*Sin datos de torneos.*")
-      .setTimestamp()] });
-  }
-
-  // ── !reportetorneo @usuario ─────────────────────────────────
-  if (comando === "!reportetorneo") {
-    const target = message.mentions.members.first();
-    if (!target) return message.reply("❌ Uso: `!reportetorneo @usuario`");
-
-    const STRIKE1_ID = require("../config").ROL_AVISO_ID;
-    const STRIKE2_ID = require("../config").ROL_AVISO2_ID;
-    const STRIKE3_ID = require("../config").ROL_EXPULSADO_ID;
-    const CANAL_SANCIONES_ID = require("../config").CANAL_SANCIONES_ID;
-
-    const ud = getUser(data, target.id);
-    if (!ud.reportesTorneo) ud.reportesTorneo = 0;
-    ud.reportesTorneo += 1;
-    saveData(data);
-
-    const canalSancion = await client.channels.fetch(CANAL_SANCIONES_ID).catch(()=>null);
-    const reporte = ud.reportesTorneo;
-
-    // Strike 1
-    if (reporte === 1) {
-      try { await target.roles.add(STRIKE1_ID); } catch {}
-      if (canalSancion) await canalSancion.send({ embeds: [new EmbedBuilder()
-        .setColor(0xf39c12).setTitle("⚠️ Reporte de Torneo — Strike 1/3")
-        .setThumbnail(target.user.displayAvatarURL({dynamic:true}))
-        .setDescription(`${target} fue reportado por participar en un torneo sin ser seleccionado.
-
-**Reportes:** \`1/3\`
-Si llega a 2 quedará suspendido de torneos por **5 días**.`)
-        .addFields({name:"👮 Reportado por", value:`${message.author}`, inline:true},{name:"📅 Fecha",value:new Date().toLocaleDateString("es-CO",{timeZone:"America/Bogota"}),inline:true})
-        .setTimestamp()] });
-      try { await target.send({ embeds: [new EmbedBuilder()
-        .setColor(0xf39c12).setTitle("⚠️ Advertencia de Torneo")
-        .setDescription(`Fuiste reportado por participar en un torneo sin haber sido seleccionado. Esto va en contra de las reglas de **EXLATAM**.
-
-**No vuelvas a hacerlo.** Tienes **1/3** reportes.
-Al llegar a 2 quedarás suspendido de torneos por **5 días**.`)
-        .setTimestamp()] }); } catch {}
-    }
-    // Strike 2
-    else if (reporte === 2) {
-      try { await target.roles.add(STRIKE2_ID); } catch {}
-      // Suspender de torneos por 5 días
-      const expiraSuspension = Date.now() + 5 * 24 * 60 * 60 * 1000;
-      ud.suspendidoTorneoHasta = expiraSuspension;
-      saveData(data);
-      setTimeout(async () => {
-        try {
-          const guild = await client.guilds.fetch(GUILD_ID);
-          const m = await guild.members.fetch(target.id);
-          await m.roles.remove(STRIKE2_ID);
-          const d = loadData();
-          if (d[target.id]) { delete d[target.id].suspendidoTorneoHasta; saveData(d); }
-        } catch {}
-      }, 5 * 24 * 60 * 60 * 1000);
-      if (canalSancion) await canalSancion.send({ embeds: [new EmbedBuilder()
-        .setColor(0xe67e22).setTitle("🚨 Reporte de Torneo — Strike 2/3 — SUSPENDIDO")
-        .setThumbnail(target.user.displayAvatarURL({dynamic:true}))
-        .setDescription(`${target} recibió su **segundo reporte**.
-
-🚫 **Suspendido de torneos por 5 días.**
-Si recibe un tercer reporte será **expulsado de la banda**.`)
-        .addFields({name:"👮 Reportado por",value:`${message.author}`,inline:true},{name:"📅 Suspensión hasta",value:`<t:${Math.floor(expiraSuspension/1000)}:F>`,inline:true})
-        .setTimestamp()] });
-      try { await target.send({ embeds: [new EmbedBuilder()
-        .setColor(0xe67e22).setTitle("🚨 Suspensión de Torneos")
-        .setDescription(`Recibiste tu **segundo reporte** por hacer trampa en torneos.
-
-Quedas **suspendido de torneos por 5 días**.
-
-Esta es tu **última oportunidad**. Al tercer reporte serás **expulsado de EXLATAM**.`)
-        .setTimestamp()] }); } catch {}
-    }
-    // Strike 3 — Expulsión
-    else if (reporte >= 3) {
-      try { await target.roles.add(STRIKE3_ID); } catch {}
-      // Quitar todos los roles de actividad
-      try { await target.roles.remove(ACTIVITY_ROLE_ID); } catch {}
-      if (canalSancion) await canalSancion.send({ embeds: [new EmbedBuilder()
-        .setColor(0xe74c3c).setTitle("🚫 Reporte de Torneo — Strike 3 — EXPULSADO")
-        .setThumbnail(target.user.displayAvatarURL({dynamic:true}))
-        .setDescription(`${target} recibió su **tercer reporte** y fue **expulsado de la banda**.
-
-Se removió el rol de actividad automáticamente.`)
-        .addFields({name:"👮 Reportado por",value:`${message.author}`,inline:true})
-        .setTimestamp()] });
-      try { await target.send({ embeds: [new EmbedBuilder()
-        .setColor(0xe74c3c).setTitle("🚫 Expulsado de EXLATAM")
-        .setDescription(`Recibiste **3 reportes** por hacer trampa en torneos.
-
-Fuiste **expulsado de EXLATAM**.
-
-Si crees que hubo un error, contacta al staff.`)
-        .setTimestamp()] }); } catch {}
-    }
-
-    return message.reply({ embeds: [new EmbedBuilder()
-      .setColor(reporte===1?0xf39c12:reporte===2?0xe67e22:0xe74c3c)
-      .setTitle(`✅ Reporte registrado — Strike ${Math.min(reporte,3)}/3`)
-      .setDescription(`${target} tiene **${reporte}/3** reportes de torneo.`)
-      .setTimestamp()] });
-  }
-
-// ── !chiteado @usuario ───────────────────────────────────────
-  if (comando === "!chiteado") {
-    const target = message.mentions.members.first();
-    if (!target) return message.reply("❌ Uso: `!chiteado @usuario`");
-
-    const ticket = await marcarChiteado(target, client);
-
-    return message.reply({ embeds: [new EmbedBuilder().setColor(0xe74c3c)
-      .setTitle("✅ Rol chiteado asignado")
-      .setDescription(`${target} tiene el rol de chiteado.${ticket ? `\nMensaje enviado en ${ticket}.` : "\n⚠️ No se encontró ticket abierto."}`)
-      .setTimestamp()] });
   }
 }
 
-// Función reutilizable: marca a un usuario como chiteado (usada por !chiteado y por el flujo de SS de !nuevo)
-async function marcarChiteado(target, client, fotoUrl = null, fotoAdjunta = []) {
-  try { await target.roles.add(ROL_CHITEADO_ID); } catch(e) { console.error("[CHITEADO]", e.message); }
+// ── Comando !armario @usuario ─────────────────────────────────────────────────
+async function handleArmarioCommand(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!armario")) return;
 
-  const guild   = await client.guilds.fetch(GUILD_ID);
-  const ticket  = guild.channels.cache.find(ch =>
-    ch.topic?.includes(`postulacionUser:${target.id}`) ||
-    ch.topic?.includes(`ticketOwner:${target.id}`)
+  const target = message.mentions.members.first() || message.member;
+  const data   = loadArmario();
+  const ud     = data[target.id];
+
+  if (!ud || !Object.keys(ud.armas || {}).length) {
+    return message.reply(`❌ No hay registros de armario para ${target}.`);
+  }
+
+  const hoy      = fechaHoy();
+  const armasHoy = ud.hoy?.[hoy] || {};
+
+  // Tabla de armas totales
+  const lineasArmas = Object.entries(ud.armas)
+    .sort((a, b) => b[1].saco - a[1].saco)
+    .map(([item, vals]) => {
+      const hoyItem = armasHoy[item] || { saco: 0, metio: 0 };
+      return `**${item}**\n↑ Sacó: ${vals.saco} (hoy: ${hoyItem.saco}) | ↓ Metió: ${vals.metio} (hoy: ${hoyItem.metio})`;
+    });
+
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setTitle(`🔫 Armario de ${target.user.tag}`)
+    .setThumbnail(target.user.displayAvatarURL({ dynamic: true }))
+    .setDescription(lineasArmas.join("\n\n") || "Sin registros de armas.")
+    .setTimestamp()
+    .setFooter({ text: `Datos acumulados desde que el bot empezó a registrar` });
+
+  if (ud.dinero?.total !== undefined) {
+    embed.addFields({ name: "💰 Dinero neto (saco - metio)", value: `$${ud.dinero.total.toLocaleString()}`, inline: true });
+  }
+
+  await message.reply({ embeds: [embed] });
+}
+
+// ── Comando !toparmario ───────────────────────────────────────────────────────
+async function handleTopArmario(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!toparmario")) return;
+
+  const data = loadArmario();
+  const hoy  = fechaHoy();
+
+  // Calcular total de armas sacadas por usuario hoy
+  const ranking = Object.entries(data)
+    .map(([uid, ud]) => {
+      const armasHoy = ud.hoy?.[hoy] || {};
+      const totalHoy = Object.values(armasHoy).reduce((sum, v) => sum + (v.saco || 0), 0);
+      const totalGen  = Object.values(ud.armas || {}).reduce((sum, v) => sum + (v.saco || 0), 0);
+      return { uid, tag: ud.tag, totalHoy, totalGen };
+    })
+    .filter(u => u.totalGen > 0)
+    .sort((a, b) => b.totalGen - a.totalGen)
+    .slice(0, 10);
+
+  if (!ranking.length) return message.reply("❌ No hay datos de armario registrados.");
+
+  const medalias = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
+  const lineas   = ranking.map((u, i) =>
+    `${medalias[i]} **${u.tag}** — ${u.totalGen} armas sacadas en total (hoy: ${u.totalHoy})`
   );
 
-  if (ticket) {
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`btn_formateo:${target.id}`)
-        .setLabel("✅ Ya formateé")
-        .setStyle(ButtonStyle.Success)
-    );
-    const embed = new EmbedBuilder()
-      .setColor(0xe74c3c)
-      .setTitle("⚠️ Aviso de Cheat")
-      .setDescription(
-        `${target} ha sido marcado como **chiteado**.\n\n` +
-        `Para continuar en la banda debes **formatear tu PC**.\n\n` +
-        `Cuando hayas formateado presiona el botón de abajo.`
-      )
-      .setTimestamp();
-    if (fotoUrl) embed.setImage(fotoUrl);
-    else if (fotoAdjunta.length) embed.setImage(`attachment://${fotoAdjunta[0].name}`);
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setTitle("🏆 Top Armario — Armas Sacadas")
+    .setDescription(lineas.join("\n"))
+    .setTimestamp();
 
-    await ticket.send({
-      content: `<@${target.id}>`,
-      embeds: [embed],
-      components: [row],
-      files: fotoAdjunta
-    });
-  }
-
-  return ticket;
+  await message.reply({ embeds: [embed] });
 }
 
-// Botón "Ya formateé" — notifica a los SS
-async function handleChiteadoButton(interaction, client) {
+// ── Comando !topmetio ─────────────────────────────────────────────────────────
+async function handleTopMetio(message) {
+  if (message.author.bot) return;
+  if (!message.content.trim().toLowerCase().startsWith("!topmetio")) return;
+
+  const data = loadArmario();
+  const hoy  = fechaHoy();
+
+  const ranking = Object.entries(data)
+    .map(([uid, ud]) => {
+      const totalGen = Object.values(ud.armas || {}).reduce((sum, v) => sum + (v.metio || 0), 0);
+      const armasHoy = ud.hoy?.[hoy] || {};
+      const totalHoy = Object.values(armasHoy).reduce((sum, v) => sum + (v.metio || 0), 0);
+      return { uid, tag: ud.tag, totalGen, totalHoy };
+    })
+    .filter(u => u.totalGen > 0)
+    .sort((a, b) => b.totalGen - a.totalGen)
+    .slice(0, 10);
+
+  if (!ranking.length) return message.reply("❌ No hay datos de armario registrados.");
+
+  const medalias = ["🥇","🥈","🥉","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"];
+  const lineas   = ranking.map((u, i) =>
+    `${medalias[i]} **${u.tag}** — ${u.totalGen} items metidos en total (hoy: ${u.totalHoy})`
+  );
+
+  const embed = new EmbedBuilder()
+    .setColor(0xFFD700)
+    .setTitle("📦 Top Armario — Items Metidos")
+    .setDescription(lineas.join("\n"))
+    .setTimestamp();
+
+  await message.reply({ embeds: [embed] });
+}
+
+// ── Handler botones de alerta de armario ──────────────────────────────────────
+async function handleArmarioAlertaButton(interaction) {
   if (!interaction.isButton()) return;
-  if (!interaction.customId.startsWith("btn_formateo:")) return;
+  const isOk  = interaction.customId.startsWith("armario_ok:");
+  const isRev = interaction.customId.startsWith("armario_rev:");
+  if (!isOk && !isRev) return;
 
-  const ownerId = interaction.customId.split(":")[1];
-  if (interaction.user.id !== ownerId)
-    return interaction.reply({ content: "❌ Este botón no es para ti.", ephemeral: true });
+  const { STAFF_ROLE_ID } = require('./config');
+  if (!interaction.member.roles.cache.has(STAFF_ROLE_ID) &&
+      !interaction.member.permissions.has(8n))
+    return interaction.reply({ content: "❌ Solo Staff puede responder esto.", ephemeral: true });
 
-  const SS_ROLE_ID = "1497410474881319102";
+  const partes  = interaction.customId.split(":");
+  const userId  = partes[1];
+  const item    = partes[2];
 
-  // Deshabilitar botón
   try {
     await interaction.update({
-      components: [new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`btn_formateo:${ownerId}`)
-          .setLabel("✅ Formateado confirmado").setStyle(ButtonStyle.Success).setDisabled(true)
-      )]
+      embeds: [EmbedBuilder.from(interaction.message.embeds[0])
+        .setColor(isOk ? 0xFFD700 : 0xe74c3c)
+        .setDescription(
+          isOk
+            ? `✅ **Marcado como normal** por ${interaction.user}.\n<@${userId}> — ${item}`
+            : `⚠️ **Marcado para revisión** por ${interaction.user}.\n<@${userId}> — ${item}`
+        )],
+      components: []
     });
-  } catch {}
-
-  // Notificar en el mismo canal
-  await interaction.channel.send({
-    content: `<@&${SS_ROLE_ID}>`,
-    embeds: [new EmbedBuilder()
-      .setColor(0x39FF14)
-      .setTitle("✅ Formateo confirmado")
-      .setDescription(
-        `<@${ownerId}> confirmó que ya formateó su PC.\n\n` +
-        `<@&${SS_ROLE_ID}> por favor proceder con la verificación de SS.`
-      )
-      .setTimestamp()]
-  });
+  } catch (e) {
+    console.error("[ARMARIO] Error botón alerta:", e.message);
+  }
 }
 
-module.exports = { handleAdmin, handleChiteadoButton, marcarChiteado };
+module.exports = { handleArmarioLogs, handleArmarioCommand, handleTopArmario, handleTopMetio, handleArmarioAlertaButton };

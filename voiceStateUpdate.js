@@ -1,274 +1,178 @@
+const { loadData, saveData, loadDataRush, saveDataRush, getUser, cleanOldDays, todayKey } = require('./dataManager');
+const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, MAX_SESSION_MS, AFK_CHANNEL_ID } = require('./config');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-const { CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, ACTIVITY_ROLE_ID } = require("../config");
 
-const ROL_MEGA_1 = "1516258964709445642";
-const ROL_MEGA_2 = "1516258963459539074";
+const TIEMPO_ENSORDECIDO_MS = 5 * 60 * 1000;
+const TIEMPO_SILENCIADO_MS  = 8 * 60 * 1000;
+const antiFarmeoTimers = new Map();
+const CANAL_LOGS_VOZ_ID = "1516294458591674530";
 
-// ROLAS — menciona solo el rol de actividad ROLAS
-const ROL_MENTION = `<@&${ACTIVITY_ROLE_ID}>`;
+// Usuarios exentos del anti-farmeo
+const afkExemptos     = new Set();
+const afkExemptosMute = new Set();
+const afkExemptoDeaf  = new Set();
 
+// Sesiones activas en memoria
+const activeSessions = new Map(); // userId -> { startMs, isRush }
+const pendingUpdates = new Map();
 
-// ── CALENDARIO ────────────────────────────────────────────────────────────────
-// tipo: torneo | tormenta | battle | drop | mega_torneo | mega_battle
-const EVENTOS = [
-  { hora: "15:00", nombre: "Torneo 1v1",                     tipo: "torneo",      puntos: "x1 pts", rank: "F1", jugadores: 100 },
-  { hora: "15:30", nombre: "Torneo Bandas 2v2",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 2  },
-  { hora: "16:00", nombre: "Torneo Bandas 2v2",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 2  },
-  { hora: "16:30", nombre: "Torneo Bandas 2v2",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 2  },
-  { hora: "17:30", nombre: "Torneo Bandas 3v3",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 3  },
-  { hora: "18:30", nombre: "Torneo 1v1",                     tipo: "torneo",      puntos: "x1 pts", rank: "F1", jugadores: 100 },
-  { hora: "19:00", nombre: "Tanda de Tormentas (8 tormentas)",tipo: "tormenta",    puntos: null,     rank: "F7", jugadores: null },
-  { hora: "20:00", nombre: "Torneo Bandas 4v4",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 4  },
-  { hora: "20:40", nombre: "x1 Battle Royale",                tipo: "battle",      puntos: null,     rank: "F7", jugadores: null },
-  { hora: "21:00", nombre: "MEGA TORNEO 5v5-10v10 (Sorteo)",  tipo: "mega_torneo", puntos: "x3 pts", rank: "F4", jugadores: null },
-  { hora: "22:00", nombre: "MEGA BATTLE ROYALE",              tipo: "mega_battle", puntos: null,     rank: "F7", jugadores: null },
-  { hora: "22:30", nombre: "DROP DEL DÍA",                    tipo: "drop",        puntos: "x1 pts", rank: "F9", jugadores: null },
-  { hora: "23:00", nombre: "Torneo Bandas 5v5",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 5  },
-  { hora: "23:30", nombre: "Torneo Bandas 4v4",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 4  },
-  { hora: "00:45", nombre: "Torneo Bandas 4v4",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 4  },
-  { hora: "01:30", nombre: "Torneo 1v1",                     tipo: "torneo",      puntos: "x1 pts", rank: "F1", jugadores: 100 },
-  { hora: "02:00", nombre: "Torneo Bandas 3v3",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 3  },
-  { hora: "02:45", nombre: "Torneo Bandas 3v3",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 3  },
-  { hora: "03:30", nombre: "Torneo Bandas 2v2",               tipo: "torneo",      puntos: "x1 pts", rank: "F4", jugadores: 2  },
-];
+// Detecta si el miembro es ROLAS, RUSH o ninguno
+function detectarSistema(member) {
+  if (member.roles.cache.has(ACTIVITY_ROLE_ID))      return "ROLAS";
+  if (member.roles.cache.has(RUSH_ACTIVITY_ROLE_ID)) return "RUSH";
+  return null;
+}
 
-const EMOJIS = {
-  torneo:      "🏆",
-  tormenta:    "🌪️",
-  battle:      "💥",
-  drop:        "🎁",
-  mega_torneo: "🔥",
-  mega_battle: "⚔️",
+// Carga y guarda el archivo correcto según el sistema
+function cargarDatos(isRush) { return isRush ? loadDataRush() : loadData(); }
+function guardarDatos(data, isRush) { isRush ? saveDataRush(data) : saveData(data); }
+
+// Al arrancar: recuperar sesiones activas
+async function recoverSessions(client) {
+  try {
+    // 1. Recuperar sesiones del JSON (para continuar contando horas)
+    for (const [isRush, label] of [[false,"ROLAS"],[true,"RUSH"]]) {
+      const data = cargarDatos(isRush);
+      for (const userId in data) {
+        const ud = data[userId];
+        if (ud.sessionStart) {
+          activeSessions.set(userId, { startMs: ud.sessionStart, isRush });
+          console.log(`[VOZ-${label}] ↩ Sesión recuperada: ${userId} desde ${new Date(ud.sessionStart).toLocaleTimeString()}`);
+        }
+      }
+    }
+
+    // 2. Escanear quién está en voz AHORA y agregar al activeSessions
+    const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, AFK_CHANNEL_ID, VOICE_CHANNELS_ALLOWED } = require('./config');
+    await client.guilds.fetch();
+    for (const [, guild] of client.guilds.cache) {
+      await guild.members.fetch().catch(() => {});
+      for (const [, member] of guild.members.cache) {
+        if (!member.voice.channelId) continue;
+        if (member.voice.channelId === AFK_CHANNEL_ID) continue;
+        if (!VOICE_CHANNELS_ALLOWED.includes(member.voice.channelId)) continue;
+        if (member.user.bot) continue;
+        if (activeSessions.has(member.id)) continue; // ya tiene sesión
+
+        const esRolas = member.roles.cache.has(ACTIVITY_ROLE_ID);
+        const esRush  = member.roles.cache.has(RUSH_ACTIVITY_ROLE_ID);
+        if (!esRolas && !esRush) continue;
+
+        const isRush = !esRolas && esRush;
+        activeSessions.set(member.id, { startMs: Date.now(), isRush });
+        console.log(`[VOZ-${isRush?"RUSH":"ROLAS"}] ▶ Sesión iniciada al arrancar: ${member.user.tag}`);
+      }
+    }
+  } catch(e) { console.error("[VOZ] Error recuperando sesiones:", e.message); }
+}
+
+module.exports = {
+  activeSessions,
+  recoverSessions,
+  handleAntiFarmeoButton,
+  afkExemptos,
+  afkExemptosMute,
+  afkExemptoDeaf,
+
+  async execute(oldState, newState, client) {
+    const member = newState.member || oldState.member;
+    if (!member || member.user.bot) return;
+
+    const sistema = detectarSistema(member);
+    if (!sistema) return;
+
+    const isRush  = sistema === "RUSH";
+    const userId  = member.id;
+    const entró   = !oldState.channelId && newState.channelId;
+    const salió   = oldState.channelId  && !newState.channelId;
+    const cambióCh = oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId;
+
+    const nuevoCanalEsAFK = newState.channelId === AFK_CHANNEL_ID;
+    const viejoCanalEsAFK = oldState.channelId === AFK_CHANNEL_ID;
+
+    // ── ENTRÓ A VOZ ──────────────────────────────────────────
+    if ((entró && !nuevoCanalEsAFK) || (cambióCh && viejoCanalEsAFK && !nuevoCanalEsAFK)) {
+      const ahora = Date.now();
+      activeSessions.set(userId, { startMs: ahora, isRush });
+
+      // RUSH no guarda horas, solo ROLAS
+      if (!isRush) {
+        const data     = cargarDatos(false);
+        const userData = getUser(data, userId);
+        userData.sessionStart = ahora;
+        guardarDatos(data, false);
+      }
+
+      console.log(`[VOZ-${sistema}] ▶ ${member.user.tag} entró a #${newState.channel?.name}`);
+    }
+
+    // ── SALIÓ DE VOZ ─────────────────────────────────────────
+    if ((salió && !viejoCanalEsAFK) || (cambióCh && !viejoCanalEsAFK && nuevoCanalEsAFK)) {
+      const sesion = activeSessions.get(userId);
+      if (sesion) {
+        const sesIsRush = sesion.isRush;
+
+        // Solo guardar horas para ROLAS
+        if (!sesIsRush) {
+          const duration = Date.now() - sesion.startMs;
+          if (duration > 0 && duration < MAX_SESSION_MS) {
+            const data     = cargarDatos(false);
+            const userData = getUser(data, userId);
+            const hoy      = todayKey();
+
+            userData.totalMs  += duration;
+            userData.weekMs   += duration;
+            userData.lastSeen  = Date.now();
+
+            if (!userData.days[hoy]) userData.days[hoy] = { totalMs: 0 };
+            userData.days[hoy].totalMs += duration;
+
+            const ayer    = new Date();
+            ayer.setDate(ayer.getDate() - 1);
+            const ayerKey = ayer.toLocaleDateString("en-CA", { timeZone: "America/Bogota" });
+            if (userData.ultimoDiaContinuo === ayerKey || userData.ultimoDiaContinuo === hoy) {
+              if (userData.ultimoDiaContinuo !== hoy) {
+                userData.diasSeguidos      = (userData.diasSeguidos || 0) + 1;
+                userData.ultimoDiaContinuo = hoy;
+              }
+            } else {
+              userData.diasSeguidos      = 1;
+              userData.ultimoDiaContinuo = hoy;
+            }
+
+            delete userData.sessionStart;
+            cleanOldDays(userData);
+            guardarDatos(data, false);
+            console.log(`[VOZ-ROLAS] ✓ ${member.user.tag} +${Math.floor(duration/60000)}m guardado`);
+          } else {
+            const data = cargarDatos(false);
+            const userData = getUser(data, userId);
+            delete userData.sessionStart;
+            guardarDatos(data, false);
+          }
+        } else {
+          // RUSH — solo eliminar sesión sin guardar horas
+          console.log(`[VOZ-RUSH] ↩ ${member.user.tag} salió de voz`);
+        }
+
+        activeSessions.delete(userId);
+      }
+
+      clearTimeout(pendingUpdates.get(userId));
+      pendingUpdates.set(userId, setTimeout(() => {
+        client.emit("updateActividadEmbed");
+        pendingUpdates.delete(userId);
+      }, 5000));
+
+      clearTimeout(antiFarmeoTimers.get(userId));
+      antiFarmeoTimers.delete(userId);
+    }
+
+    // Anti-farmeo desactivado
+  },
 };
 
-// Inscripciones activas: eventoKey -> { inscritos: Set<userId> }
-const inscripcionesActivas = new Map();
-
-function horaAMinutos(h) { const [hh, mm] = h.split(":").map(Number); return hh * 60 + mm; }
-function ahoraEnSegs() {
-  const c = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }));
-  return (c.getHours() * 60 + c.getMinutes()) * 60 + c.getSeconds();
+async function handleAntiFarmeoButton(interaction) {
+  // Anti-farmeo desactivado — función vacía para compatibilidad
+  return;
 }
-function eventosSiguientes(n = 3) {
-  const ahora = ahoraEnSegs() / 60;
-  const ord = [...EVENTOS].sort((a, b) => horaAMinutos(a.hora) - horaAMinutos(b.hora));
-  return [...ord.filter(e => horaAMinutos(e.hora) > ahora), ...ord.filter(e => horaAMinutos(e.hora) <= ahora)].slice(0, n);
-}
-
-// ── TORNEOS AUTOMÁTICOS: solo anuncio, sin sorteo ────────────────────────────
-async function lanzarTorneoNormal(evento, client) {
-  const canal = await client.channels.fetch(CANAL_CMD_TORNEO).catch(() => null);
-  if (!canal) return;
-
-  const embed = new EmbedBuilder()
-    .setColor(0x39FF14)
-    .setTitle(`🏆 ${evento.nombre}`)
-    .setDescription(
-      `🗺️ **El spawn ya está en barrio — ¡métanse!**\n\n` +
-      `📌 **Rank:** ${evento.rank}\n` +
-      `${evento.puntos ? `🏅 **Puntos:** ${evento.puntos}\n` : ""}` +
-      `🎮 Entren al canal de voz y al servidor ahora.`
-    )
-    .setTimestamp();
-
-  await canal.send({ content: undefined, embeds: [embed] });
-}
-
-// ── MEGAs: solo notificación con mención especial ─────────────────────────────
-async function lanzarMega(evento, client) {
-  const canal = await client.channels.fetch(CANAL_CMD_TORNEO).catch(() => null);
-  if (!canal) return;
-
-  const emoji = EMOJIS[evento.tipo];
-  const esMegaTorneo = evento.tipo === "mega_torneo";
-  const embed = new EmbedBuilder()
-    .setColor(0xff6b00)
-    .setTitle(`${emoji} ${evento.nombre}`)
-    .setDescription(
-      `<@&${ROL_MEGA_1}> <@&${ROL_MEGA_2}> — ¡¡HAY **${evento.nombre.toUpperCase()}**!!\n\n` +
-      `📌 **Rank:** ${evento.rank}\n` +
-      `${evento.puntos ? `🏅 **Puntos:** ${evento.puntos}\n` : ""}` +
-      (esMegaTorneo
-        ? `\n📋 **Reglas:**\n` +
-          `• Se juega en equipos, ustedes eligen la plantilla\n` +
-          `• Solo participan quienes tengan los rangos requeridos (${evento.rank})\n` +
-          `• Los rangos deben respetarse\n` +
-          `• La formación del equipo la deciden los propios jugadores\n\n`
-        : "\n") +
-      `🎮 **Por favor entren al canal de voz para jugar.**`
-    )
-    .setTimestamp();
-
-  await canal.send({ content: undefined, embeds: [embed] });
-}
-
-// ── TANDA DE TORMENTAS ────────────────────────────────────────────────────────
-async function lanzarTormenta(client, esRush = false) {
-  const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
-  if (!canal) return;
-
-  const rolMention = `<@&${ACTIVITY_ROLE_ID}>`;
-  const label = "ROLAS";
-  let enviados = 0;
-  const MAX = 8;
-
-  const enviarAviso = async () => {
-    enviados++;
-    try {
-      await canal.send({
-        content: rolMention,
-        embeds: [new EmbedBuilder()
-          .setColor(0x3498db)
-          .setTitle(`🌪️ TANDA DE TORMENTAS — ${label} ¡ENTRAR! (${enviados}/${MAX})`)
-          .setDescription("**¡¡¡TANDA DE TORMENTAS, ENTREN!!!!!!**\n\n🌪️ ¡Todos al canal de voz AHORA!")
-          .setFooter({ text: `Aviso ${enviados} de ${MAX} • Próximo en 5 min` })
-          .setTimestamp()]
-      });
-    } catch(e) { console.error("[TANDA] Error:", e.message); }
-  };
-
-  await enviarAviso();
-  if (enviados >= MAX) return;
-
-  const interval = setInterval(async () => {
-    await enviarAviso();
-    if (enviados >= MAX) {
-      clearInterval(interval);
-      try {
-        await canal.send({ embeds: [new EmbedBuilder()
-          .setColor(0x39FF14)
-          .setTitle(`✅ Tanda finalizada — ${label}`)
-          .setDescription(`Se enviaron **${MAX} avisos**. ¡A jugar! 🎮`)
-          .setTimestamp()] });
-      } catch {}
-    }
-  }, 5 * 60 * 1000);
-}
-
-// ── NOTIFICACIONES PREVIAS ────────────────────────────────────────────────────
-async function notificarPrevio(evento, tipo, client) {
-  const esTorneo  = ["torneo"].includes(evento.tipo);
-  const canalId   = esTorneo ? CANAL_CMD_TORNEO : CANAL_CMD_ANUNCIOS;
-  const canal     = await client.channels.fetch(canalId).catch(() => null);
-  if (!canal) return;
-
-  const emoji      = EMOJIS[evento.tipo] || "🎮";
-  const minutos    = tipo === "10min" ? 10 : 3;
-  const color      = tipo === "10min" ? 0xf39c12 : 0xe74c3c;
-  const siguientes = tipo === "3min" ? eventosSiguientes(3) : null;
-
-  const embed = new EmbedBuilder()
-    .setColor(color)
-    .setTitle(`${emoji} ${evento.nombre}`)
-    .setDescription(
-      `⏰ En **${minutos} minutos** comienza:\n\n` +
-      `${emoji} **${evento.nombre}**${evento.puntos ? ` → ${evento.puntos}` : ""} → Rank **${evento.rank}**\n\n` +
-      `¡${tipo === "3min" ? "Entren ya al canal de voz!" : "Prepárense!"}`
-    )
-    .setTimestamp();
-
-  if (siguientes?.length) {
-    embed.addFields({
-      name: "📅 Próximos eventos",
-      value: siguientes.map(e => `${EMOJIS[e.tipo] || "🎮"} **${e.hora}** — ${e.nombre}${e.puntos ? ` → ${e.puntos}` : ""}`).join("\n")
-    });
-  }
-
-  await canal.send({ content: undefined, embeds: [embed] });
-}
-
-// ── BOTONES DE INSCRIPCIÓN ────────────────────────────────────────────────────
-async function handleInscripcionButton(interaction) {
-  if (!interaction.isButton()) return;
-  const isInscribir = interaction.customId.startsWith("inscribir_torneo:");
-  const isSalir     = interaction.customId.startsWith("salir_torneo:");
-  if (!isInscribir && !isSalir) return;
-
-  // Verificar que el usuario tiene rol ROLAS
-  const { ACTIVITY_ROLE_ID } = require("../config");
-  if (!interaction.member.roles.cache.has(ACTIVITY_ROLE_ID))
-    return interaction.reply({ content: "❌ Este torneo es solo para **ROLAS**. No tienes el rol de actividad ROLAS.", ephemeral: true });
-
-  const key  = interaction.customId.split(":").slice(1).join(":");
-  const data = inscripcionesActivas.get(key);
-
-  if (!data) return interaction.reply({ content: "❌ Las inscripciones para este torneo ya cerraron.", ephemeral: true });
-
-  if (isInscribir) {
-    if (data.inscritos.has(interaction.user.id))
-      return interaction.reply({ content: "⚠️ Ya estás inscrito en este torneo.", ephemeral: true });
-    if (data.maxJugadores && data.inscritos.size >= data.maxJugadores)
-      return interaction.reply({ content: "❌ El torneo ya está lleno.", ephemeral: true });
-    data.inscritos.add(interaction.user.id);
-    return interaction.reply({ content: `✅ Te inscribiste en el torneo ROLAS. ¡Prepárate! (${data.inscritos.size}/${data.maxJugadores ?? "∞"})`, ephemeral: true });
-  }
-
-  if (!data.inscritos.has(interaction.user.id))
-    return interaction.reply({ content: "⚠️ No estás inscrito en este torneo.", ephemeral: true });
-  data.inscritos.delete(interaction.user.id);
-  return interaction.reply({ content: `✅ Saliste de la inscripción. (${data.inscritos.size}/${data.maxJugadores ?? "∞"})`, ephemeral: true });
-}
-
-// ── MOTOR PRINCIPAL ───────────────────────────────────────────────────────────
-let timers = [];
-
-function startCalendarioTask(client) {
-  timers.forEach(t => clearTimeout(t));
-  timers = [];
-
-  const ahora = ahoraEnSegs();
-
-  EVENTOS.forEach(evento => {
-    const eventoSegs = horaAMinutos(evento.hora) * 60;
-
-    const notifs = [
-      { offset: -10 * 60, cb: () => notificarPrevio(evento, "10min", client) },
-      { offset: -3  * 60, cb: () => notificarPrevio(evento, "3min",  client) },
-      { offset: 0, cb: async () => {
-        if (evento.tipo === "torneo")                              await lanzarTorneoNormal(evento, client);
-        else if (evento.tipo === "mega_torneo" || evento.tipo === "mega_battle") await lanzarMega(evento, client);
-        else if (evento.tipo === "tormenta")                       await lanzarTormenta(client);
-        else if (evento.tipo === "battle") {
-          const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
-          if (canal) {
-            await canal.send({
-              content: undefined,
-              embeds: [new EmbedBuilder()
-                .setColor(0xff6b00)
-                .setTitle("💥 x1 Battle Royale")
-                .setDescription(`¡**BATTLE ROYALE** comenzando ahora! → Rank **${evento.rank}**\n\n🎮 ¡Entren al canal de voz!`)
-                .setTimestamp()]
-            });
-          }
-        } else if (evento.tipo === "drop") {
-          const canal = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => null);
-          if (canal) {
-            await canal.send({
-              content: undefined,
-              embeds: [new EmbedBuilder()
-                .setColor(0xe74c3c)
-                .setTitle("🎁 DROP DEL DÍA")
-                .setDescription(`¡**DROP DEL DÍA** disponible ahora! → Rank **${evento.rank}**\n\n🎮 ¡Entren al canal de voz!`)
-                .setTimestamp()]
-            });
-          }
-        }
-      }},
-    ];
-
-    notifs.forEach(({ offset, cb }) => {
-      let diff = (eventoSegs + offset) - ahora;
-      if (diff < 0) diff += 24 * 60 * 60;
-      const t = setTimeout(async () => { try { await cb(); } catch(e) { console.error("[CALENDARIO]", e.message); } }, diff * 1000);
-      timers.push(t);
-    });
-  });
-
-  // Re-programar al día siguiente
-  const t24 = setTimeout(() => startCalendarioTask(client), 24 * 60 * 60 * 1000);
-  timers.push(t24);
-
-  console.log(`[CALENDARIO] ${EVENTOS.length * 3} notificaciones programadas.`);
-}
-
-module.exports = { startCalendarioTask, handleInscripcionButton, EVENTOS };

@@ -1,75 +1,61 @@
 const { EmbedBuilder } = require("discord.js");
-const {
-  CANAL_CMD_HORAS, CANAL_CMD_INACTIVO,
-  CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, CANAL_CMD_ADMIN,
-  RUSH_CANAL_CMD_HORAS, RUSH_CANAL_CMD_INACTIVO,
-} = require("../config");
+const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, LOGO_URL,
+        CANAL_CMD_ANUNCIOS }          = require('./config');
 
-// Texto de comandos por canal
-const COMANDOS_POR_CANAL = {
-  // Canal de horas ROLAS eliminado del servidor — no usar
-  // [CANAL_CMD_HORAS]: { ... }
-  // Canal RUSH de horas desactivado — RUSH no tiene sistema de horas
-  // [RUSH_CANAL_CMD_HORAS]: { ... }
-  [CANAL_CMD_INACTIVO]: {
-    titulo: "📋 Comandos de Inactividad — ROLAS y RUSH",
-    texto: "`!inactivorolas` → Justificar inactividad ROLAS (abre formulario)\n`!inactivorush` → Justificar inactividad RUSH (abre formulario)\n\n" +
-           "⚠️ **MUY IMPORTANTE:** las fechas deben ir en formato **AÑO-MES-DÍA** (`YYYY-MM-DD`).\n" +
-           "✅ Ejemplo correcto: `2026-06-20`\n" +
-           "❌ Incorrecto: `20-06-2026`, `20/06/26`, `junio 20`\n\n" +
-           "Si pones el formato mal, el bot puede confundirse y calcular mal tus fechas de inactividad.",
-  },
-  // Canal RUSH de inactivo desactivado — ambos van al canal ROLAS con !inactivorush
-  // [RUSH_CANAL_CMD_INACTIVO]: { ... }
-  [CANAL_CMD_ANUNCIOS]: {
-    titulo: "📢 Comandos de Anuncios — ROLAS",
-    texto: "`!activense` `!tormenta` `!battle` `!drop` → Notificar eventos a la banda ROLAS\n`!tandastormentas` → Inicia tanda de 8 avisos (ROLAS)\n`!paratanda` → Detiene la tanda\n\n**RUSH:**\n`!activenserush` `!tormentarush` `!battlerush` `!droprush`\n`!tandastormentasrush` → Inicia tanda RUSH\n`!paratandarush` → Detiene la tanda RUSH",
-  },
-  [CANAL_CMD_TORNEO]: {
-    titulo: "🏆 Comandos de Torneo",
-    texto: "`!torneo` → Crear un torneo con inscripción\n`!torneostop` → Ver top de participantes\n`!reportetorneo @usuario` → Reportar tramposo en torneo",
-  },
-  [CANAL_CMD_ADMIN]: {
-    titulo: "🛠️ Comandos de Admin",
-    texto: "`!chiteado @usuario` → Marcar usuario como chiteado\n`!nuevo @usuario` → Procesar nuevo miembro\n`!migrarroles` → Migrar roles entre servidores",
-  },
+const cooldowns   = new Map();
+const COOLDOWN_MS = 60 * 1000;
+
+const COMANDOS_ROLAS = {
+  "!activense": { titulo:"⚡ ¡ACTÍVENSE — ROLAS!",          color:0xFFD700, desc:"¡Vengan al canal de voz ahora!" },
+  "!tormenta":  { titulo:"🌪️ ¡TORMENTA EN 1 MIN — ROLAS!", color:0xFFD700, desc:"¡Prepárense, tormenta en 1 minuto!" },
+  "!battle":    { titulo:"⚔️ ¡BATTLE ROYAL — ROLAS!",       color:0xe74c3c, desc:"¡Battle Royal comenzando!" },
+  "!drop":      { titulo:"📦 ¡DROP — ROLAS!",               color:0xf39c12, desc:"¡Drop cayendo en 1 minuto!" },
 };
 
-// channelId -> messageId del mensaje fijado actual
-const pinnedMessages = new Map();
+const COMANDOS_RUSH = {
+  "!activenserush": { titulo:"⚡ ¡ACTÍVENSE — RUSH!",          color:0xFFD700, desc:"¡Vengan al canal de voz ahora!" },
+  "!tormentarush":  { titulo:"🌪️ ¡TORMENTA EN 1 MIN — RUSH!", color:0xFFD700, desc:"¡Prepárense, tormenta en 1 minuto!" },
+  "!battlerush":    { titulo:"⚔️ ¡BATTLE ROYAL — RUSH!",       color:0xe74c3c, desc:"¡Battle Royal comenzando!" },
+  "!droprush":      { titulo:"📦 ¡DROP — RUSH!",               color:0xf39c12, desc:"¡Drop cayendo en 1 minuto!" },
+};
 
-async function ensurePinnedCommands(channel) {
-  const info = COMANDOS_POR_CANAL[channel.id];
-  if (!info) return;
+const TODOS_COMANDOS = { ...COMANDOS_ROLAS, ...COMANDOS_RUSH };
 
-  // Borra el mensaje viejo del bot si existe
-  const oldId = pinnedMessages.get(channel.id);
-  if (oldId) {
-    try {
-      const oldMsg = await channel.messages.fetch(oldId);
-      await oldMsg.delete();
-    } catch {}
+async function handleAnuncios(message) {
+  if (message.author.bot) return;
+  const cmd = message.content.trim().toLowerCase();
+  if (!TODOS_COMANDOS[cmd]) return;
+
+  const esRush = cmd.endsWith("rush");
+  const rolId  = esRush ? RUSH_ACTIVITY_ROLE_ID : ACTIVITY_ROLE_ID;
+
+  if (!message.member.roles.cache.has(rolId))
+    return message.reply(`❌ Solo ${esRush ? "RUSH" : "ROLAS"} puede usar este comando.`);
+
+  if (message.channel.id !== CANAL_CMD_ANUNCIOS) {
+    const aviso = await message.reply(`❌ Este comando solo se puede usar en <#${CANAL_CMD_ANUNCIOS}>`);
+    setTimeout(() => { try { aviso.delete(); message.delete(); } catch {} }, 5000);
+    return;
   }
+
+  const key    = `${cmd}:${message.author.id}`;
+  const ultimo = cooldowns.get(key);
+  if (ultimo && Date.now() - ultimo < COOLDOWN_MS) {
+    const segs = Math.ceil((COOLDOWN_MS - (Date.now() - ultimo)) / 1000);
+    return message.reply(`⏳ Espera **${segs} segundos**.`);
+  }
+  cooldowns.set(key, Date.now());
+
+  const { titulo, color, desc } = TODOS_COMANDOS[cmd];
+  try { await message.delete(); } catch {}
 
   const embed = new EmbedBuilder()
-    .setColor(0x39FF14)
-    .setTitle(info.titulo)
-    .setDescription(info.texto)
-    .setFooter({ text: "Comandos disponibles en este canal" });
+    .setTitle(titulo).setDescription(desc).setColor(color)
+    .setThumbnail(LOGO_URL).setTimestamp()
+    .setFooter({ text: `Enviado por ${message.author.username}` });
 
-  try {
-    const nuevo = await channel.send({ embeds: [embed] });
-    pinnedMessages.set(channel.id, nuevo.id);
-  } catch (e) {
-    console.error("[COMANDOS_FIJADOS] Error:", e.message);
-  }
+  // SÍ etiqueta al rol
+  await message.channel.send({ content: `<@&${rolId}>`, embeds: [embed] });
 }
 
-// Se llama en cada mensaje nuevo en canales de comandos
-async function handleComandosFijados(message) {
-  if (!COMANDOS_POR_CANAL[message.channel.id]) return;
-  if (message.author.bot) return; // ignorar mensajes del bot para evitar loop infinito
-  await ensurePinnedCommands(message.channel);
-}
-
-module.exports = { handleComandosFijados, ensurePinnedCommands, COMANDOS_POR_CANAL };
+module.exports = { handleAnuncios };
