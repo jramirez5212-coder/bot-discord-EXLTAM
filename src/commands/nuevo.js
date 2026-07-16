@@ -239,7 +239,7 @@ async function handleSSResultButton(interaction, client) {
 
   // Limpio: preguntar tipo de miembro
   const rowBanda = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`nuevo_banda:COMUNIDAD:${solicitudId}`).setLabel("Comunidad").setEmoji("<:XP:1525303717237231707>").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`nuevo_banda:COMUNIDAD:${solicitudId}`).setLabel("Comunidad").setEmoji({id:"1525303717237231707",name:"XP"}).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`nuevo_banda:ROLAS:${solicitudId}`).setLabel("ROLAS").setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId(`nuevo_banda:RUSH:${solicitudId}`).setLabel("RUSH").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`nuevo_banda:BLUEBERRY:${solicitudId}`).setLabel("BLUEBERRY").setStyle(ButtonStyle.Danger),

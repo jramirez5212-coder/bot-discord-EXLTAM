@@ -191,8 +191,8 @@ const buildApplicationEmbed = (user, app) => {
 const buildPanel = () => ({
   embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl}).setTitle("📝 Sistema de Postulaciones").setDescription("**Bienvenido al sistema oficial de postulaciones de PARIS.COM.**\n\nSelecciona el tipo de postulación que deseas hacer. El bot te hará las preguntas una por una por DM.\n\nCuando termines, tu postulación llegará al equipo de staff para aprobarla o rechazarla.").setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"PARIS.COM • Sistema de Postulaciones",iconURL:config.logoUrl})],
   components:[new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("start_postulacion_comunidad").setLabel("Comunidad").setEmoji("<:XP:1525303717237231707>").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("start_postulacion_bandas").setLabel("Bandas").setEmoji("<:vip:1325597365746532363>").setStyle(ButtonStyle.Success)
+    new ButtonBuilder().setCustomId("start_postulacion_comunidad").setLabel("Comunidad").setEmoji({id:"1525303717237231707",name:"XP"}).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("start_postulacion_bandas").setLabel("Bandas").setEmoji({id:"1325597365746532363",name:"vip"}).setStyle(ButtonStyle.Success)
   )]
 });
 
@@ -418,6 +418,14 @@ client.on("messageCreate", async message => {
     await handleArmarioCommand(message);
     await handleTopArmario(message);
     await handleTopMetio(message);
+
+    // ── !quien ────────────────────────────────────────────────────────────────
+    if (message.content.trim().toLowerCase() === "!quien") {
+      if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos.").catch(()=>null);
+      try { await message.delete(); } catch {}
+      await message.channel.send("# @everyone QUIEN POR AHI?");
+      return;
+    }
 
     // ── !exp @usuario — eximir del reenvío como embed ─────────────────────────
     if (message.content.trim().toLowerCase().startsWith("!exp")) {
