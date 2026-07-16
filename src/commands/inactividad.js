@@ -5,7 +5,7 @@ const {
 const { ACTIVITY_ROLE_ID, CANAL_INACTIVIDAD_ID, CANAL_CMD_INACTIVO,
         BANNER_INACTIVIDAD, ROL_INACTIVO_ID, GUILD_ID,
         RUSH_ACTIVITY_ROLE_ID, RUSH_ROL_INACTIVO_ID,
-        RUSH_CANAL_CMD_INACTIVO }  = require("../config");
+        RUSH_CANAL_CMD_INACTIVO }  = require('../config');
 
 const excusasActivas = new Map();
 const cooldowns      = new Map();

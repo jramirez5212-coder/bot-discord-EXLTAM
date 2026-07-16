@@ -4,7 +4,7 @@ const {
 const { STAFF_ROLE_ID, LOGO_URL,
         CANAL_CMD_HORAS, CANAL_CMD_INACTIVO,
         CANAL_CMD_TORNEO, CANAL_CMD_ANUNCIOS,
-        ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID } = require("../config");
+        ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID } = require('../config');
 
 // Roles base que se dan a cualquier nuevo miembro (sin el rol de actividad)
 const ROLES_BASE = [
@@ -215,7 +215,7 @@ async function handleSSResultButton(interaction, client) {
   const fotoEmbedRef = solicitud.fotoBuffer ? `attachment://${solicitud.fotoName}` : null;
 
   if (isChiteado) {
-    const { marcarChiteado } = require("./admin");
+    const { marcarChiteado } = require('../commands/admin');
     await marcarChiteado(target, client, null, fotoAdjunta);
 
     const ticketPostulacion = guild.channels.cache.find(ch => ch.topic?.includes(`postulacionUser:${target.id}`));

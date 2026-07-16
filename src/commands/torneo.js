@@ -2,8 +2,8 @@ const {
   EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
   ActionRowBuilder, ButtonBuilder, ButtonStyle
 } = require("discord.js");
-const { loadData, saveData, getUser } = require("../utils/dataManager");
-const { ACTIVITY_ROLE_ID, LOGO_URL, CANAL_CMD_TORNEO, GUILD_ID } = require("../config");
+const { loadData, saveData, getUser } = require('../utils/dataManager');
+const { ACTIVITY_ROLE_ID, LOGO_URL, CANAL_CMD_TORNEO, GUILD_ID } = require('../config');
 
 const ROL_TORNEO_ID  = "1504721382368481331";
 const COOLDOWN_MS    = 60 * 1000;

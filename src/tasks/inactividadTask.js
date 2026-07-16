@@ -1,13 +1,13 @@
 const { EmbedBuilder, ActionRowBuilder,
         ButtonBuilder, ButtonStyle }                    = require("discord.js");
 const { loadData, saveData, getUser, todayKey,
-        horaMinutoColombia }                            = require("../utils/dataManager");
-const { msToHours }                                     = require("../utils/format");
+        horaMinutoColombia }                            = require('../utils/dataManager');
+const { msToHours }                                     = require('../utils/format');
 const { ACTIVITY_ROLE_ID, STAFF_ROLE_ID,
         CANAL_ADVERTENCIAS_ID, CANAL_LOGS_ID,
         CANAL_SANCIONES_ID, CANAL_AVISO_LINK,
         GUILD_ID, DIA_ADV_1, DIA_ADV_2,
-        DIA_ADV_3, DIA_EXPULSA }                       = require("../config");
+        DIA_ADV_3, DIA_EXPULSA }                       = require('../config');
 
 const CANAL_DECISION_EXPULSION_ID = "1517009855020273776";
 

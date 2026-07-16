@@ -1,5 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } = require("discord.js");
-const { CANAL_CMD_TORNEO } = require("../config");
+const { CANAL_CMD_TORNEO } = require('../config');
 
 const CANAL_PANEL_EVENTOS = "1516259370994761781";
 
@@ -269,7 +269,7 @@ async function handleEmbedCreator(message) {
 async function handleAnuncioCmd(message) {
   if (message.author.bot) return;
   if (!message.content.trim().toLowerCase().startsWith("!anuncio")) return;
-  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require("../config");
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require('../config');
   if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
   const texto = message.content.slice("!anuncio".length).trim();
   if (!texto) return message.reply("❌ Uso: `!anuncio [texto]`");
@@ -284,7 +284,7 @@ async function handleAnuncioCmd(message) {
 async function handleRecordatorio(message) {
   if (message.author.bot) return;
   if (!message.content.trim().toLowerCase().startsWith("!recordatorio")) return;
-  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require("../config");
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require('../config');
   if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
   const args = message.content.slice("!recordatorio".length).trim().split(/\s+/);
   const mins = parseInt(args[0]);
@@ -306,7 +306,7 @@ const encuestaSesiones = new Map();
 
 async function handleEncuesta(message) {
   if (message.author.bot) return;
-  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require("../config");
+  const { STAFF_ROLE_ID, ACTIVITY_ROLE_ID } = require('../config');
   if (!message.member?.roles?.cache?.has(STAFF_ROLE_ID) && !message.member?.permissions?.has(8n)) return;
   const content = message.content.trim();
   if (content.toLowerCase() === "!encuesta") {

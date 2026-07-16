@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { RUSH_ACTIVITY_ROLE_ID, GUILD_ID, LOGO_URL, VOICE_CHANNELS_ALLOWED } = require("../config");
+const { RUSH_ACTIVITY_ROLE_ID, GUILD_ID, LOGO_URL, VOICE_CHANNELS_ALLOWED } = require('../config');
 
 const CANAL_PRESENCIA_RUSH = "1518493643214815252";
 let presenciaMsgId = null;
@@ -23,7 +23,7 @@ async function updatePresenciaRush(client) {
     const enVoz    = [];
     const fuera    = [];
 
-    const { loadDataRush, saveDataRush, getUser } = require("../utils/dataManager");
+    const { loadDataRush, saveDataRush, getUser } = require('../utils/dataManager');
     const data = loadDataRush();
     let changed = false;
 

@@ -1,8 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder,
         ButtonBuilder, ButtonStyle }                    = require("discord.js");
 const { loadDataRush, saveDataRush, getUser, todayKey,
-        horaMinutoColombia }                            = require("../utils/dataManager");
-const { msToHours }                                     = require("../utils/format");
+        horaMinutoColombia }                            = require('../utils/dataManager');
+const { msToHours }                                     = require('../utils/format');
 // Alias para compatibilidad
 const loadData = loadDataRush;
 const saveData = saveDataRush;
@@ -10,7 +10,7 @@ const { RUSH_ACTIVITY_ROLE_ID, STAFF_ROLE_ID,
         RUSH_CANAL_ADVERTENCIAS_ID, RUSH_CANAL_LOGS_ID,
         CANAL_SANCIONES_ID, RUSH_CANAL_AVISO_LINK,
         GUILD_ID, DIA_ADV_1, DIA_ADV_2,
-        DIA_ADV_3, DIA_EXPULSA }                       = require("../config");
+        DIA_ADV_3, DIA_EXPULSA }                       = require('../config');
 
 const CANAL_DECISION_EXPULSION_ID = "1517009855020273776";
 

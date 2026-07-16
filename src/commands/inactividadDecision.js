@@ -1,6 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-const { loadData, saveData, getUser } = require("../utils/dataManager");
-const { ACTIVITY_ROLE_ID, STAFF_ROLE_ID, CANAL_ADVERTENCIAS_ID } = require("../config");
+const { loadData, saveData, getUser } = require('../utils/dataManager');
+const { ACTIVITY_ROLE_ID, STAFF_ROLE_ID, CANAL_ADVERTENCIAS_ID } = require('../config');
 
 const CANAL_EXPULSADOS_FINAL_ID = "1517009855020273776";
 const RECHEQUEO_RANGO_MS = 5 * 60 * 1000; // 5 minutos

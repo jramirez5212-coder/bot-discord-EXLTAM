@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require("discord.js");
-const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, CANAL_CMD_ANUNCIOS, LOGO_URL } = require("../config");
+const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, CANAL_CMD_ANUNCIOS, LOGO_URL } = require('../config');
 
 const tandasActivas = new Map();
 const cooldowns     = new Map();

@@ -1,12 +1,12 @@
 const { EmbedBuilder }                              = require("discord.js");
 const { loadData, getUser, todayKey,
         horaMinutoColombia, loadTops, saveTops,
-        saveData }                                  = require("../utils/dataManager");
-const { msToHours }                                 = require("../utils/format");
+        saveData }                                  = require('../utils/dataManager');
+const { msToHours }                                 = require('../utils/format');
 const { CANAL_ACTIVIDAD_ID, CANAL_TOP_ID,
         CANAL_LOGS_ID, ACTIVITY_ROLE_ID,
         TOP_ROLE_ID, STAFF_ROLE_ID,
-        TOP_SIZE, GUILD_ID, LOGO_URL }              = require("../config");
+        TOP_SIZE, GUILD_ID, LOGO_URL }              = require('../config');
 
 let embedActividadId = null;
 let embedTopId       = null;
@@ -16,7 +16,7 @@ let guildCache       = null;
 let _activeSessions = null;
 function getActiveSessions() {
   if (!_activeSessions)
-    _activeSessions = require("../events/voiceStateUpdate").activeSessions;
+    _activeSessions = require('./voiceStateUpdate').activeSessions;
   return _activeSessions;
 }
 

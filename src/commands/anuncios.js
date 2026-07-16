@@ -1,6 +1,6 @@
 const { EmbedBuilder } = require("discord.js");
 const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, LOGO_URL,
-        CANAL_CMD_ANUNCIOS }          = require("../config");
+        CANAL_CMD_ANUNCIOS }          = require('../config');
 
 const cooldowns   = new Map();
 const COOLDOWN_MS = 60 * 1000;

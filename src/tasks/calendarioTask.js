@@ -1,5 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-const { CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, ACTIVITY_ROLE_ID } = require("../config");
+const { CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, ACTIVITY_ROLE_ID } = require('../config');
 
 const ROL_MEGA_1 = "1516258964709445642";
 const ROL_MEGA_2 = "1516258963459539074";
@@ -185,7 +185,7 @@ async function handleInscripcionButton(interaction) {
   if (!isInscribir && !isSalir) return;
 
   // Verificar que el usuario tiene rol ROLAS
-  const { ACTIVITY_ROLE_ID } = require("../config");
+  const { ACTIVITY_ROLE_ID } = require('../config');
   if (!interaction.member.roles.cache.has(ACTIVITY_ROLE_ID))
     return interaction.reply({ content: "❌ Este torneo es solo para **ROLAS**. No tienes el rol de actividad ROLAS.", ephemeral: true });
 

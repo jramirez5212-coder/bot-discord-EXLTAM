@@ -1,11 +1,11 @@
 const { EmbedBuilder }                              = require("discord.js");
 const { loadDataRush, saveDataRush, getUser, todayKey,
-        horaMinutoColombia, loadTopsRush, saveTopsRush } = require("../utils/dataManager");
-const { msToHours }                                 = require("../utils/format");
+        horaMinutoColombia, loadTopsRush, saveTopsRush } = require('../utils/dataManager');
+const { msToHours }                                 = require('../utils/format');
 const { RUSH_CANAL_ACTIVIDAD_ID, RUSH_CANAL_TOP_ID,
         RUSH_CANAL_LOGS_ID, RUSH_ACTIVITY_ROLE_ID,
         TOP_ROLE_ID, STAFF_ROLE_ID,
-        TOP_SIZE, GUILD_ID, LOGO_URL }              = require("../config");
+        TOP_SIZE, GUILD_ID, LOGO_URL }              = require('../config');
 
 // Alias para compatibilidad
 const loadData = loadDataRush;
@@ -21,14 +21,14 @@ let guildCacheRush       = null;
 let _activeSessions = null;
 function getActiveSessions() {
   if (!_activeSessions)
-    _activeSessions = require("../events/voiceStateUpdate").activeSessions;
+    _activeSessions = require('./voiceStateUpdate').activeSessions;
   return _activeSessions;
 }
 
 async function getGuild(client) {
   if (!guildCacheRush) {
     // Intentar reutilizar el caché de ROLAS para no hacer doble fetch
-    const { getGuildCache } = require("./actividadTask");
+    const { getGuildCache } = require('../tasks/actividadTask');
     const cacheRolas = getGuildCache();
     if (cacheRolas) {
       guildCacheRush = cacheRolas;

@@ -1,5 +1,5 @@
-const { loadData, saveData, loadDataRush, saveDataRush, getUser, cleanOldDays, todayKey } = require("../utils/dataManager");
-const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, MAX_SESSION_MS, AFK_CHANNEL_ID } = require("../config");
+const { loadData, saveData, loadDataRush, saveDataRush, getUser, cleanOldDays, todayKey } = require('../utils/dataManager');
+const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, MAX_SESSION_MS, AFK_CHANNEL_ID } = require('../config');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
 const TIEMPO_ENSORDECIDO_MS = 5 * 60 * 1000;
@@ -43,7 +43,7 @@ async function recoverSessions(client) {
     }
 
     // 2. Escanear quién está en voz AHORA y agregar al activeSessions
-    const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, AFK_CHANNEL_ID, VOICE_CHANNELS_ALLOWED } = require("../config");
+    const { ACTIVITY_ROLE_ID, RUSH_ACTIVITY_ROLE_ID, AFK_CHANNEL_ID, VOICE_CHANNELS_ALLOWED } = require('../config');
     await client.guilds.fetch();
     for (const [, guild] of client.guilds.cache) {
       await guild.members.fetch().catch(() => {});

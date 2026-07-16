@@ -1,8 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle }                                         = require("discord.js");
-const { loadData, saveData, getUser, todayKey }                = require("../utils/dataManager");
-const { msToHours }                                            = require("../utils/format");
+const { loadData, saveData, getUser, todayKey }                = require('../utils/dataManager');
+const { msToHours }                                            = require('../utils/format');
 const { ACTIVITY_ROLE_ID, STAFF_ROLE_ID, GUILD_ID,
-        LOGO_URL, CANAL_CMD_ADMIN, AFK_CHANNEL_ID }            = require("../config");
+        LOGO_URL, CANAL_CMD_ADMIN, AFK_CHANNEL_ID }            = require('../config');
 
 const ROL_CHITEADO_ID = "1516258987320807536";
 
@@ -107,7 +107,7 @@ async function handleAdmin(message, client) {
     let count = 0;
 
     // Limpiar sesiones activas en memoria
-    const { activeSessions } = require("../events/voiceStateUpdate");
+    const { activeSessions } = require('./voiceStateUpdate');
     activeSessions.clear();
 
     for (const id in data) {
@@ -126,7 +126,7 @@ async function handleAdmin(message, client) {
 
   // ── !syncvoz ─────────────────────────────────────────────────
   if (comando === "!syncvoz") {
-    const { activeSessions } = require("../events/voiceStateUpdate");
+    const { activeSessions } = require('./voiceStateUpdate');
     const guild = await client.guilds.fetch(GUILD_ID); await guild.members.fetch();
     activeSessions.clear();
     const ahora = Date.now(); let synced = 0;
@@ -147,7 +147,7 @@ async function handleAdmin(message, client) {
 
   // ── !status ──────────────────────────────────────────────────
   if (comando === "!status") {
-    const { activeSessions } = require("../events/voiceStateUpdate");
+    const { activeSessions } = require('./voiceStateUpdate');
     const ahora = Date.now(); let desc = "";
     for (const [id, ts] of activeSessions) {
       const mins = Math.floor((ahora - ts) / 60000);
@@ -314,10 +314,10 @@ async function handleAdmin(message, client) {
     const target = message.mentions.members.first();
     if (!target) return message.reply("❌ Uso: `!reportetorneo @usuario`");
 
-    const STRIKE1_ID = require("../config").ROL_AVISO_ID;
-    const STRIKE2_ID = require("../config").ROL_AVISO2_ID;
-    const STRIKE3_ID = require("../config").ROL_EXPULSADO_ID;
-    const CANAL_SANCIONES_ID = require("../config").CANAL_SANCIONES_ID;
+    const STRIKE1_ID = require('../config').ROL_AVISO_ID;
+    const STRIKE2_ID = require('../config').ROL_AVISO2_ID;
+    const STRIKE3_ID = require('../config').ROL_EXPULSADO_ID;
+    const CANAL_SANCIONES_ID = require('../config').CANAL_SANCIONES_ID;
 
     const ud = getUser(data, target.id);
     if (!ud.reportesTorneo) ud.reportesTorneo = 0;

@@ -1,5 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
-const { CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, RUSH_ACTIVITY_ROLE_ID } = require("../config");
+const { CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, RUSH_ACTIVITY_ROLE_ID } = require('../config');
 
 const ROL_MEGA_1 = "1516258964709445642";
 const ROL_MEGA_2 = "1516258963459539074";
@@ -181,7 +181,7 @@ async function handleInscripcionRushButton(interaction) {
   if (!isInscribir && !isSalir) return;
 
   // Verificar que el usuario tiene rol RUSH
-  const { RUSH_ACTIVITY_ROLE_ID } = require("../config");
+  const { RUSH_ACTIVITY_ROLE_ID } = require('../config');
   if (!interaction.member.roles.cache.has(RUSH_ACTIVITY_ROLE_ID))
     return interaction.reply({ content: "❌ Este torneo es solo para **RUSH**. No tienes el rol de actividad RUSH.", ephemeral: true });
 

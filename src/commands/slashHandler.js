@@ -1,6 +1,6 @@
 const { EmbedBuilder, PermissionFlagsBits } = require("discord.js");
 const { STAFF_ROLE_ID, CANAL_CMD_HORAS, CANAL_CMD_INACTIVO,
-        CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, CANAL_CMD_ADMIN } = require("../config");
+        CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, CANAL_CMD_ADMIN } = require('../config');
 
 // Convierte interacción de slash en un objeto compatible con los handlers existentes
 function fakeMessage(interaction, contentOverride = null) {
@@ -38,29 +38,29 @@ async function handleSlashCommand(interaction, client) {
   try {
     // ── Actividad ─────────────────────────────────────────────
     if (cmd === "horas") {
-      const { handleHoras } = require("./horas");
+      const { handleHoras } = require('../commands/horas');
       return handleHoras(fakeMessage(interaction), client);
     }
     if (cmd === "top") {
-      const { handleHoras } = require("./horas");
+      const { handleHoras } = require('../commands/horas');
       return handleHoras(fakeMessage(interaction, "!top"), client);
     }
     if (cmd === "sesiones") {
-      const { handleHoras } = require("./horas");
+      const { handleHoras } = require('../commands/horas');
       return handleHoras(fakeMessage(interaction, "!sesiones"), client);
     }
     if (cmd === "info") {
-      const { handleHoras } = require("./horas");
+      const { handleHoras } = require('../commands/horas');
       return handleHoras(fakeMessage(interaction, "!info"), client);
     }
     if (cmd === "status") {
-      const { handleHoras } = require("./horas");
+      const { handleHoras } = require('../commands/horas');
       return handleHoras(fakeMessage(interaction, "!status"), client);
     }
 
     // ── Inactividad ───────────────────────────────────────────
     if (cmd === "inactivo") {
-      const { handleInactividad } = require("./inactividad");
+      const { handleInactividad } = require('../commands/inactividad');
       // Forzar canal correcto
       const canalInactivo = await client.channels.fetch(CANAL_CMD_INACTIVO).catch(() => interaction.channel);
       const fakeMsg = { ...fakeMessage(interaction, "!inactivo"), channel: canalInactivo };
@@ -69,7 +69,7 @@ async function handleSlashCommand(interaction, client) {
 
     // ── Torneos ───────────────────────────────────────────────
     if (cmd === "torneo" || cmd === "torneostop" || cmd === "reportetorneo") {
-      const { handleAdmin } = require("./admin");
+      const { handleAdmin } = require('../commands/admin');
       const userMention = interaction.options.getUser("usuario");
       const content = userMention ? `!${cmd} <@${userMention.id}>` : `!${cmd}`;
       return handleAdmin(fakeMessage(interaction, content), client);
@@ -77,44 +77,44 @@ async function handleSlashCommand(interaction, client) {
 
     // ── Anuncios ──────────────────────────────────────────────
     if (["activense","tormenta","battle","drop"].includes(cmd)) {
-      const { handleAnuncios } = require("./anuncios");
+      const { handleAnuncios } = require('../commands/anuncios');
       const canalAnuncios = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => interaction.channel);
       return handleAnuncios({ ...fakeMessage(interaction, `!${cmd}`), channel: canalAnuncios });
     }
     if (cmd === "tandastormentas" || cmd === "paratanda") {
-      const { handleTandas } = require("./tandas");
+      const { handleTandas } = require('../commands/tandas');
       const canalAnuncios = await client.channels.fetch(CANAL_CMD_ANUNCIOS).catch(() => interaction.channel);
       return handleTandas({ ...fakeMessage(interaction, `!${cmd}`), channel: canalAnuncios });
     }
 
     // ── Armario ───────────────────────────────────────────────
     if (cmd === "armario") {
-      const { handleArmarioCommand } = require("./armario");
+      const { handleArmarioCommand } = require('../commands/armario');
       const userMention = interaction.options.getUser("usuario");
       const content = userMention ? `!armario <@${userMention.id}>` : "!armario";
       return handleArmarioCommand(fakeMessage(interaction, content));
     }
     if (cmd === "toparmario") {
-      const { handleTopArmario } = require("./armario");
+      const { handleTopArmario } = require('../commands/armario');
       return handleTopArmario(fakeMessage(interaction));
     }
 
     // ── Nuevo / Chiteado ──────────────────────────────────────
     if (cmd === "nuevo") {
-      const { handleNuevo } = require("./nuevo");
+      const { handleNuevo } = require('../commands/nuevo');
       const userMencion = interaction.options.getUser("usuario");
       const content = `!nuevo <@${userMencion.id}>`;
       return handleNuevo(fakeMessage(interaction, content), client);
     }
     if (cmd === "chiteado") {
-      const { handleAdmin } = require("./admin");
+      const { handleAdmin } = require('../commands/admin');
       const userMencion = interaction.options.getUser("usuario");
       return handleAdmin(fakeMessage(interaction, `!chiteado <@${userMencion.id}>`), client);
     }
 
     // ── Embed ─────────────────────────────────────────────────
     if (cmd === "embed") {
-      const { handleEmbedCreator } = require("./panelEventos");
+      const { handleEmbedCreator } = require('../commands/panelEventos');
       const canal       = interaction.options.getChannel("canal");
       const titulo      = interaction.options.getString("titulo");
       const descripcion = interaction.options.getString("descripcion") || "_";
@@ -128,13 +128,13 @@ async function handleSlashCommand(interaction, client) {
 
     // ── Panel / Tickets ───────────────────────────────────────
     if (cmd === "panel" || cmd === "paneltickets" || cmd === "forceupdate" || cmd === "syncvoz") {
-      const { handleAdmin } = require("./admin");
+      const { handleAdmin } = require('../commands/admin');
       return handleAdmin(fakeMessage(interaction, `!${cmd}`), client);
     }
 
     // ── Admin de actividad ────────────────────────────────────
     if (["addtime","removetime","sethoras","resetuser","resetweek","setadv","clearadv","listactivos","listinactivos","migrarroles"].includes(cmd)) {
-      const { handleAdmin } = require("./admin");
+      const { handleAdmin } = require('../commands/admin');
       const userMencion = interaction.options.getUser("usuario");
       const minutos     = interaction.options.getInteger("minutos");
       const cantidad    = interaction.options.getInteger("cantidad");

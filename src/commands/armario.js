@@ -317,7 +317,7 @@ async function handleArmarioAlertaButton(interaction) {
   const isRev = interaction.customId.startsWith("armario_rev:");
   if (!isOk && !isRev) return;
 
-  const { STAFF_ROLE_ID } = require("../config");
+  const { STAFF_ROLE_ID } = require('../config');
   if (!interaction.member.roles.cache.has(STAFF_ROLE_ID) &&
       !interaction.member.permissions.has(8n))
     return interaction.reply({ content: "❌ Solo Staff puede responder esto.", ephemeral: true });

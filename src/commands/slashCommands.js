@@ -1,5 +1,5 @@
 const { REST, Routes, SlashCommandBuilder } = require("discord.js");
-const { GUILD_ID } = require("../config");
+const { GUILD_ID } = require('../config');
 
 const commands = [
   // ── Actividad ────────────────────────────────────────────────

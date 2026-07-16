@@ -3,7 +3,7 @@ const {
   CANAL_CMD_HORAS, CANAL_CMD_INACTIVO,
   CANAL_CMD_ANUNCIOS, CANAL_CMD_TORNEO, CANAL_CMD_ADMIN,
   RUSH_CANAL_CMD_HORAS, RUSH_CANAL_CMD_INACTIVO,
-} = require("../config");
+} = require('../config');
 
 // Texto de comandos por canal
 const COMANDOS_POR_CANAL = {

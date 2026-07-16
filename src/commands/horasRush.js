@@ -1,8 +1,8 @@
 const { EmbedBuilder }                                         = require("discord.js");
-const { loadDataRush, getUser, todayKey }                      = require("../utils/dataManager");
-const { msToHours, lastNDays }                                 = require("../utils/format");
+const { loadDataRush, getUser, todayKey }                      = require('../utils/dataManager');
+const { msToHours, lastNDays }                                 = require('../utils/format');
 const { RUSH_ACTIVITY_ROLE_ID, TOP_ROLE_ID, TOP_SIZE,
-        GUILD_ID, LOGO_URL, RUSH_CANAL_CMD_HORAS }                  = require("../config");
+        GUILD_ID, LOGO_URL, RUSH_CANAL_CMD_HORAS }                  = require('../config');
 
 // Alias para compatibilidad con el código copiado de horas.js
 const loadData = loadDataRush;
@@ -10,7 +10,7 @@ const loadData = loadDataRush;
 // Sesiones activas para calcular tiempo en vivo
 let _activeSessions = null;
 function getActiveSessions() {
-  if (!_activeSessions) _activeSessions = require("../events/voiceStateUpdate").activeSessions;
+  if (!_activeSessions) _activeSessions = require('./voiceStateUpdate').activeSessions;
   return _activeSessions;
 }
 
