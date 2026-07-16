@@ -82,7 +82,27 @@ const configViejo = {
   bannerUrl: config.bannerUrl,
 };
 
-const questions = ["Nombre:","Residencia/País?:","Edad (**mínimo 15**)","5 Clips o 1HG:","Foto de las horas de FiveM:","Foto KD (**mínimo 1.8**)","Link Steam Público:","Tiempo Disponible?:","¿Te postulas para ROLAS o RUSH? (escribe exactamente ROLAS o RUSH)"];
+const questionsComunidad = [
+  "¿Por qué quieres entrar a PARIS.COM?",
+  "¿Cómo nos encontraste?",
+  "¿Cuál es tu edad?",
+  "¿De qué país eres?",
+  "¿A qué juegos juegas?",
+  "Del 1 al 10, ¿qué tan tranquilo eres en comunidad?"
+];
+
+const questionsBandas = [
+  "Nombre:",
+  "5 Clips o 1 HG:",
+  "Foto de las horas de FiveM:",
+  "Foto KD (**mínimo 1.8**):",
+  "Link Steam Público:",
+  "Tiempo Disponible:",
+  "¿Para qué banda te postulas? (ROLAS / RUSH / BLUEBERRY / OTRAS)"
+];
+
+// Para compatibilidad con el sistema existente
+const questions = questionsBandas;
 
 const ticketTypes = {
   reportes: { label:"Reportes", emoji:"⛔",  categoryId:"1516259251750834226", roleId:"1516258948871753902", description:"⚠️ **Cuéntanos en qué te podemos ayudar.**\n\n~ Usuario reportado:\n~ Motivo del reporte:\n~ Pruebas / clips:\n~ Explicación completa de lo sucedido:" },
@@ -138,15 +158,17 @@ const decisionButtons = id => new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId(`rechazar_${id}`).setLabel("Rechazar").setStyle(ButtonStyle.Danger)
 );
 
-const questionEmbed = i => new EmbedBuilder().setColor(COLOR)
+const questionEmbed = (i, preguntas, tipo) => new EmbedBuilder().setColor(COLOR)
   .setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl})
-  .setTitle("📝 | Postulación")
-  .setDescription(`**${i+1}/${questions.length}. ${questions[i]}**\n\nResponde enviando un mensaje. Puedes enviar texto, links o imágenes.`)
+  .setTitle(`📝 | Postulación ${tipo === "comunidad" ? "Comunidad 🌐" : "Bandas ⚔️"}`)
+  .setDescription(`**${i+1}/${preguntas.length}. ${preguntas[i]}**\n\nResponde enviando un mensaje. Puedes enviar texto, links o imágenes.`)
   .setFooter({text:config.guildName,iconURL:config.logoUrl});
 
 // Embed de postulación con formato bonito
 const buildApplicationEmbed = (user, app) => {
-  const fields = questions.map((q, i) => {
+  const preguntas = app.preguntas || questionsBandas;
+  const tipo = app.tipo || "bandas";
+  const fields = preguntas.map((q, i) => {
     const answer = app.answers[i] || "Sin respuesta";
     return { name: `**${q}**`, value: answer, inline: false };
   });
@@ -154,7 +176,7 @@ const buildApplicationEmbed = (user, app) => {
   return new EmbedBuilder()
     .setColor(COLOR)
     .setAuthor({name:"PARIS.COM Postulaciones", iconURL:config.logoUrl})
-    .setTitle("📝 **POSTULACIÓN**")
+    .setTitle(`📝 **POSTULACIÓN — ${tipo === "comunidad" ? "Comunidad 🌐" : "Bandas ⚔️"}**`)
     .setThumbnail(user.displayAvatarURL({dynamic:true}))
     .addFields(
       {name:"👤 Usuario", value:`${user}`, inline:true},
@@ -167,8 +189,11 @@ const buildApplicationEmbed = (user, app) => {
 };
 
 const buildPanel = () => ({
-  embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl}).setTitle("📝 Sistema de Postulaciones").setDescription("**Bienvenido al sistema oficial de postulaciones de PARIS.COM.**\n\nPresiona el botón de abajo para iniciar. El bot te hará las preguntas una por una por DM.\n\nCuando termines, tu postulación llegará al equipo de staff para aprobarla o rechazarla.").setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"PARIS.COM • Sistema de Postulaciones",iconURL:config.logoUrl})],
-  components:[new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId("start_postulacion").setLabel("Iniciar postulación").setEmoji("📝").setStyle(ButtonStyle.Success))]
+  embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl}).setTitle("📝 Sistema de Postulaciones").setDescription("**Bienvenido al sistema oficial de postulaciones de PARIS.COM.**\n\nSelecciona el tipo de postulación que deseas hacer. El bot te hará las preguntas una por una por DM.\n\nCuando termines, tu postulación llegará al equipo de staff para aprobarla o rechazarla.").setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"PARIS.COM • Sistema de Postulaciones",iconURL:config.logoUrl})],
+  components:[new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId("start_postulacion_comunidad").setLabel("Comunidad").setEmoji("🌐").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId("start_postulacion_bandas").setLabel("Bandas").setEmoji("⚔️").setStyle(ButtonStyle.Success)
+  )]
 });
 
 const ticketPanel = (guildId) => {
@@ -189,7 +214,7 @@ async function botLog(emoji,titulo,detalle="",origen="auto",ejecutadoPor=null){t
 
 async function sendAutoPostulacionesPanel(origen="auto",ejecutadoPor=null){const ch=await client.channels.fetch(config.postulacionesPanelChannelId).catch(()=>null);if(!ch?.isTextBased())return;const meta=loadMeta();if(meta.postulacionesPanelMessageId){const old=await ch.messages.fetch(meta.postulacionesPanelMessageId).catch(()=>null);if(old){await old.edit(buildPanel());}else{const m=await ch.send(buildPanel());meta.postulacionesPanelMessageId=m.id;saveMeta(meta);}}else{const m=await ch.send(buildPanel());meta.postulacionesPanelMessageId=m.id;saveMeta(meta);}await botLog("📝","Panel de postulaciones actualizado",`Canal: <#${config.postulacionesPanelChannelId}>`,origen,ejecutadoPor);}
 
-async function askQuestion(userId){const apps=loadApps();const app=apps[userId];if(!app)return;const user=await client.users.fetch(userId).catch(()=>null);if(!user)return;await user.send({embeds:[questionEmbed(app.current)]});}
+async function askQuestion(userId){const apps=loadApps();const app=apps[userId];if(!app)return;const user=await client.users.fetch(userId).catch(()=>null);if(!user)return;const preguntas=app.preguntas||questionsBandas;const tipo=app.tipo||"bandas";await user.send({embeds:[questionEmbed(app.current,preguntas,tipo)]});}
 
 // Enviar postulación al staff con archivos adjuntos visibles
 async function sendApplicationToStaff(userId) {
@@ -423,7 +448,9 @@ async function handlePostulacionDM(message) {
   app.answers.push(answerFromMessage(message));
   app.current += 1;
 
-  if (app.current >= questions.length) {
+  const preguntas = app.preguntas || questionsBandas;
+
+  if (app.current >= preguntas.length) {
     app.status="enviada";apps[userId]=app;saveApps(apps);
     await message.author.send({embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl}).setTitle("✅ **POSTULACIÓN** enviada").setDescription("Tu **POSTULACIÓN** fue enviada correctamente. Espera respuesta del staff.").setFooter({text:config.guildName,iconURL:config.logoUrl})]}).catch(()=>null);
     await sendApplicationToStaff(userId);return;
@@ -475,16 +502,34 @@ client.on("interactionCreate", async interaction => {
       return;
     }
 
-    if (interaction.customId === "start_postulacion") {
+    if (interaction.customId === "start_postulacion_comunidad" || interaction.customId === "start_postulacion_bandas") {
       await interaction.deferReply({ephemeral:true});
-      const apps=loadApps();apps[interaction.user.id]={status:"respondiendo",current:0,answers:[],createdAt:Date.now()};saveApps(apps);
-      try{await askQuestion(interaction.user.id);await botLog("📝","Postulación iniciada",`<@${interaction.user.id}>`,"auto");return interaction.editReply({content:"📩 Te envié las preguntas por DM. Revisa tus mensajes privados."});}
-      catch(e){
+      const tipo = interaction.customId === "start_postulacion_comunidad" ? "comunidad" : "bandas";
+      const preguntas = tipo === "comunidad" ? questionsComunidad : questionsBandas;
+      const apps=loadApps();
+      apps[interaction.user.id]={status:"respondiendo",current:0,answers:[],tipo,preguntas,createdAt:Date.now()};
+      saveApps(apps);
+      try{
+        await askQuestion(interaction.user.id);
+        await botLog("📝","Postulación iniciada",`<@${interaction.user.id}> (${tipo})`,"auto");
+        return interaction.editReply({content:`📩 Te envié las preguntas por DM. Revisa tus mensajes privados.`});
+      } catch(e){
         delete apps[interaction.user.id];saveApps(apps);
         try {
           const canalProblemas = await client.channels.fetch("1516259311410614332");
-          await canalProblemas.send({embeds:[new EmbedBuilder().setColor(0xe74c3c).setTitle("⚠️ Problema al iniciar postulación").setDescription(`${interaction.user} intentó postular pero no se pudo enviar el DM (privados cerrados o error).`).setTimestamp()]});
+          await canalProblemas.send({embeds:[new EmbedBuilder().setColor(0xe74c3c).setTitle("⚠️ Problema al iniciar postulación").setDescription(`${interaction.user} intentó postular (${tipo}) pero no se pudo enviar el DM.`).setTimestamp()]});
         } catch {}
+        return interaction.editReply({content:"No pude enviarte DM. Activa los mensajes privados e intenta otra vez."});
+      }
+    }
+
+    // Compatibilidad con botón viejo
+    if (interaction.customId === "start_postulacion") {
+      await interaction.deferReply({ephemeral:true});
+      const apps=loadApps();apps[interaction.user.id]={status:"respondiendo",current:0,answers:[],tipo:"bandas",preguntas:questionsBandas,createdAt:Date.now()};saveApps(apps);
+      try{await askQuestion(interaction.user.id);await botLog("📝","Postulación iniciada",`<@${interaction.user.id}>`,"auto");return interaction.editReply({content:"📩 Te envié las preguntas por DM. Revisa tus mensajes privados."});}
+      catch(e){
+        delete apps[interaction.user.id];saveApps(apps);
         return interaction.editReply({content:"No pude enviarte DM. Activa los mensajes privados e intenta otra vez."});
       }
     }

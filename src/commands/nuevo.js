@@ -396,10 +396,12 @@ async function handleBandaButton(interaction, client) {
       new ButtonBuilder().setCustomId(`tutorial_claro:${target.id}`).setLabel("✅ Todo claro").setStyle(ButtonStyle.Success),
       new ButtonBuilder().setCustomId(`tutorial_dudas:${target.id}`).setLabel("❓ Tengo dudas").setStyle(ButtonStyle.Danger)
     );
-    const embedTutorial = new EmbedBuilder().setColor(0xFFD700).setTitle("🎬 Tutorial de Discord — PARIS.COM")
-      .setDescription(`${target}, antes de empezar mira el **tutorial completo**.\n📺 **Ve el video completo** para entender canales, comandos y reglas.`).setTimestamp();
-    await canalComando.send({ embeds: [embedTutorial], components: [rowTutorial] });
-    if (videoAttachment) { try { await canalComando.send({ content: videoAttachment.url }); } catch {} }
+    const embedTutorial = new EmbedBuilder().setColor(0xFFD700)
+      .setTitle("🎉 ¡Bienvenido/a a PARIS.COM!")
+      .setDescription(`${target} **¡Ya tienes tu rol, bienvenido!**\n\nEstás oficialmente dentro de la comunidad. Lee los canales de información y disfruta.`)
+      .setImage("https://cdn.discordapp.com/attachments/1516259320357064826/1525313157650845847/ChatGPT_Image_10_jul_2026_07_49_23_p.m..png?ex=6a5a2e53&is=6a58dcd3&hm=60e0fec4ddedc2549efeebe4da81ff993cfe946fab643e13dcf51e9e18e58fda&")
+      .setTimestamp();
+    await canalComando.send({ embeds: [embedTutorial] });
   } catch(e) { console.error("[NUEVO] Error tutorial:", e.message); }
 }
 
