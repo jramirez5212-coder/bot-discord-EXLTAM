@@ -191,8 +191,8 @@ const buildApplicationEmbed = (user, app) => {
 const buildPanel = () => ({
   embeds:[new EmbedBuilder().setColor(COLOR).setAuthor({name:"PARIS.COM Postulaciones",iconURL:config.logoUrl}).setTitle("📝 Sistema de Postulaciones").setDescription("**Bienvenido al sistema oficial de postulaciones de PARIS.COM.**\n\nSelecciona el tipo de postulación que deseas hacer. El bot te hará las preguntas una por una por DM.\n\nCuando termines, tu postulación llegará al equipo de staff para aprobarla o rechazarla.").setThumbnail(config.logoUrl).setImage(config.bannerUrl).setFooter({text:"PARIS.COM • Sistema de Postulaciones",iconURL:config.logoUrl})],
   components:[new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId("start_postulacion_comunidad").setLabel("Comunidad").setEmoji("🌐").setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId("start_postulacion_bandas").setLabel("Bandas").setEmoji("⚔️").setStyle(ButtonStyle.Success)
+    new ButtonBuilder().setCustomId("start_postulacion_comunidad").setLabel("Comunidad").setEmoji("<:XP:1525303717237231707>").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId("start_postulacion_bandas").setLabel("Bandas").setEmoji("<:vip:1325597365746532363>").setStyle(ButtonStyle.Success)
   )]
 });
 
@@ -210,7 +210,7 @@ const ticketPanel = (guildId) => {
   };
 };
 
-async function botLog(emoji,titulo,detalle="",origen="auto",ejecutadoPor=null){try{const ch=await client.channels.fetch(config.botLogsChannelId).catch(()=>null);if(!ch?.isTextBased())return;const embed=new EmbedBuilder().setColor(origen==="manual"?0xf0a500:COLOR).setAuthor({name:"EXLATAM Bot — Log",iconURL:config.logoUrl}).setTitle(`${emoji} ${titulo}`).addFields({name:"Origen",value:origen==="manual"?`🖐️ Manual${ejecutadoPor?` — ${ejecutadoPor}`:""}` :"🤖 Automático",inline:true},{name:"Hora",value:colombiaTime(),inline:true},{name:"Fecha",value:colombiaDate(),inline:true}).setFooter({text:config.guildName,iconURL:config.logoUrl}).setTimestamp();if(detalle)embed.setDescription(detalle);await ch.send({embeds:[embed]});}catch(e){console.log("⚠️ botLog:",e.message);}}
+async function botLog(emoji,titulo,detalle="",origen="auto",ejecutadoPor=null){try{const ch=await client.channels.fetch(config.botLogsChannelId).catch(()=>null);if(!ch?.isTextBased())return;const embed=new EmbedBuilder().setColor(origen==="manual"?0xf0a500:COLOR).setAuthor({name:"PARIS.COM Bot — Log",iconURL:config.logoUrl}).setTitle(`${emoji} ${titulo}`).addFields({name:"Origen",value:origen==="manual"?`🖐️ Manual${ejecutadoPor?` — ${ejecutadoPor}`:""}` :"🤖 Automático",inline:true},{name:"Hora",value:colombiaTime(),inline:true},{name:"Fecha",value:colombiaDate(),inline:true}).setFooter({text:config.guildName,iconURL:config.logoUrl}).setTimestamp();if(detalle)embed.setDescription(detalle);await ch.send({embeds:[embed]});}catch(e){console.log("⚠️ botLog:",e.message);}}
 
 async function sendAutoPostulacionesPanel(origen="auto",ejecutadoPor=null){const ch=await client.channels.fetch(config.postulacionesPanelChannelId).catch(()=>null);if(!ch?.isTextBased())return;const meta=loadMeta();if(meta.postulacionesPanelMessageId){const old=await ch.messages.fetch(meta.postulacionesPanelMessageId).catch(()=>null);if(old){await old.edit(buildPanel());}else{const m=await ch.send(buildPanel());meta.postulacionesPanelMessageId=m.id;saveMeta(meta);}}else{const m=await ch.send(buildPanel());meta.postulacionesPanelMessageId=m.id;saveMeta(meta);}await botLog("📝","Panel de postulaciones actualizado",`Canal: <#${config.postulacionesPanelChannelId}>`,origen,ejecutadoPor);}
 
@@ -297,7 +297,7 @@ async function createResultTicket(userId, status, staffUser, banda = null) {
     const embed = new EmbedBuilder()
       .setColor(approved ? COLOR : 0xff3c3c)
       .setAuthor({name:"PARIS.COM Postulaciones", iconURL:config.logoUrl})
-      .setTitle(approved ? `✅ **POSTULACIÓN** Aprobada${banda ? ` — ${banda}` : ""}` : "❌ **POSTULACIÓN** Rechazada")
+      .setTitle(approved ? "`✅ **POSTULACIÓN** Aprobada`" : "❌ **POSTULACIÓN** Rechazada")
       .setDescription(approved
         ? `Tu **POSTULACIÓN** fue **aprobada** por ${staffUser}.\n\nFuiste asignado a la banda **${banda || "?"}**.\n\nAhora pasas a la **segunda etapa del proceso**, la cual se realizará por **llamada**.\n\nCuando el staff te notifique, deberás entrar a la **sala de espera** para continuar con la entrevista.`
         : `Tu **POSTULACIÓN** fue **rechazada** por ${staffUser}.\n\nPuedes usar este ticket para preguntar el motivo o apelar la decisión de forma respetuosa.`
@@ -369,33 +369,43 @@ client.on("guildMemberAdd", async member => {
   } catch(e){console.log("⚠️ Bienvenida error:",e.message);}
 });
 
+const exentosInactividad = new Set(); // usuarios exentos del reenvío como embed
+
 client.on("voiceStateUpdate", () => {}); // desactivado
 
 client.on("messageCreate", async message => {
   if (message.guild) {
-    // Armario — Rolas Academy es un bot
     await handleArmarioLogs(message);
   }
 
   if (message.author.bot) return;
 
   if (message.guild) {
-    // Inactividad simple — reenvía lo que escribió la persona como embed
-    const CANAL_INACTIVO_ROLAS = "1516259366557323386";
-    const CANAL_INACTIVO_RUSH  = "1516259366557323386"; // mismo canal
-    if (message.channel.id === CANAL_INACTIVO_ROLAS) {
+    const CANAL_INACTIVO = "1516259366557323386";
+    if (message.channel.id === CANAL_INACTIVO) {
       try {
-        const embed = new EmbedBuilder()
-          .setColor(0xFFD700)
-          .setAuthor({ name: message.member.displayName, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
-          .setDescription(message.content || "_Sin texto_")
-          .setTimestamp()
-          .setFooter({ text: `ID: ${message.author.id}` });
-        if (message.attachments.size > 0) {
-          const img = message.attachments.find(a => a.contentType?.startsWith("image"));
-          if (img) embed.setImage(img.url);
+        if (exentosInactividad.has(message.author.id)) {
+          // Exento — reenviar como mensaje normal sin embed
+          const contenido = message.content || "";
+          const archivos  = [...message.attachments.values()];
+          await message.channel.send({
+            content: `**${message.member.displayName}:** ${contenido}`,
+            files:   archivos.map(a => a.url)
+          });
+        } else {
+          // Normal — reenviar como embed
+          const embed = new EmbedBuilder()
+            .setColor(0xFFD700)
+            .setAuthor({ name: message.member.displayName, iconURL: message.author.displayAvatarURL({ dynamic: true }) })
+            .setDescription(message.content || "_Sin texto_")
+            .setTimestamp()
+            .setFooter({ text: `ID: ${message.author.id}` });
+          if (message.attachments.size > 0) {
+            const img = message.attachments.find(a => a.contentType?.startsWith("image"));
+            if (img) embed.setImage(img.url);
+          }
+          await message.channel.send({ embeds: [embed] });
         }
-        await message.channel.send({ embeds: [embed] });
         await message.delete().catch(() => {});
       } catch(e) { console.error("[INACTIVIDAD]", e.message); }
       return;
@@ -408,6 +418,20 @@ client.on("messageCreate", async message => {
     await handleArmarioCommand(message);
     await handleTopArmario(message);
     await handleTopMetio(message);
+
+    // ── !exp @usuario — eximir del reenvío como embed ─────────────────────────
+    if (message.content.trim().toLowerCase().startsWith("!exp")) {
+      if (!isStaffMember(message.member)) return message.reply("❌ No tienes permisos.").catch(()=>null);
+      const target = message.mentions.users.first();
+      if (!target) return message.reply("❌ Menciona a un usuario. Ej: `!exp @usuario`").catch(()=>null);
+      if (exentosInactividad.has(target.id)) {
+        exentosInactividad.delete(target.id);
+        return message.reply(`✅ ${target} ya **no está exento** — sus mensajes volverán a reenviarse como embed.`).catch(()=>null);
+      } else {
+        exentosInactividad.add(target.id);
+        return message.reply(`✅ ${target} **exento** — sus mensajes en el canal de inactividad se reenviarán como mensaje normal.`).catch(()=>null);
+      }
+    }
 
     if (message.content.trim().toLowerCase() === "!paneltickets") {
       if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) return message.reply("❌ No tienes permisos.");

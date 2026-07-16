@@ -237,22 +237,24 @@ async function handleSSResultButton(interaction, client) {
     return;
   }
 
-  // Limpio: preguntar ROLAS o RUSH antes de asignar roles
+  // Limpio: preguntar tipo de miembro
   const rowBanda = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`nuevo_banda:ROLAS:${solicitudId}`).setLabel("🟢 ROLAS").setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`nuevo_banda:RUSH:${solicitudId}`).setLabel("🔴 RUSH").setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId(`nuevo_banda:COMUNIDAD:${solicitudId}`).setLabel("Comunidad").setEmoji("<:XP:1525303717237231707>").setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`nuevo_banda:ROLAS:${solicitudId}`).setLabel("ROLAS").setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`nuevo_banda:RUSH:${solicitudId}`).setLabel("RUSH").setStyle(ButtonStyle.Primary),
+    new ButtonBuilder().setCustomId(`nuevo_banda:BLUEBERRY:${solicitudId}`).setLabel("BLUEBERRY").setStyle(ButtonStyle.Danger),
   );
 
   // Guardar solicitud para usarla cuando elijan la banda
   solicitud.fotoAdjunta  = fotoAdjunta;
   solicitud.fotoEmbedRef = fotoEmbedRef;
   solicitud.targetId     = target.id;
-  pendientesSS.set(solicitudId, solicitud); // re-guardar con datos extra
+  pendientesSS.set(solicitudId, solicitud);
 
   await interaction.channel.send({
     content: `<@${solicitud.atendioId}>`,
-    embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Limpio — ¿Banda?")
-      .setDescription(`**${target}** salió limpio. ¿A qué banda pertenece?`)
+    embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle("✅ Limpio — ¿Comunidad o Banda?")
+      .setDescription(`**${target}** salió limpio. ¿A qué pertenece?`)
       .setTimestamp()],
     components: [rowBanda]
   });
@@ -331,19 +333,19 @@ async function handleTutorialButton(interaction, client) {
   } catch {}
 }
 
-// Handler botón ROLAS/RUSH después de confirmar limpio
+// Handler botón Comunidad/ROLAS/RUSH/BLUEBERRY después de confirmar limpio
 async function handleBandaButton(interaction, client) {
   if (!interaction.isButton()) return;
   if (!interaction.customId.startsWith("nuevo_banda:")) return;
 
   const partes      = interaction.customId.split(":");
-  const banda       = partes[1]; // "ROLAS" o "RUSH"
+  const banda       = partes[1]; // COMUNIDAD | ROLAS | RUSH | BLUEBERRY
   const solicitudId = partes[2];
   const solicitud   = pendientesSS.get(solicitudId);
   if (!solicitud) return interaction.reply({ content: "❌ Solicitud no encontrada.", ephemeral: true });
 
   if (interaction.user.id !== solicitud.atendioId)
-    return interaction.reply({ content: "❌ Solo quien ejecutó `!nuevo` puede elegir la banda.", ephemeral: true });
+    return interaction.reply({ content: "❌ Solo quien ejecutó `!nuevo` puede elegir.", ephemeral: true });
 
   pendientesSS.delete(solicitudId);
   try { await interaction.message.delete(); } catch {}
@@ -352,8 +354,17 @@ async function handleBandaButton(interaction, client) {
   const target = await guild.members.fetch(solicitud.targetId).catch(() => null);
   if (!target) return interaction.reply({ content: "❌ Usuario no encontrado.", ephemeral: true });
 
-  const rolActividad = banda === "RUSH" ? RUSH_ACTIVITY_ROLE_ID : ACTIVITY_ROLE_ID;
-  const rolesAsignar = [...ROLES_BASE, rolActividad];
+  // Roles según tipo
+  let rolesAsignar = [];
+  if (banda === "COMUNIDAD") {
+    rolesAsignar = ["1516258985286696961", "1516258966756266054"];
+  } else if (banda === "ROLAS") {
+    rolesAsignar = ["1516258966756266054", "1516258974163402862"];
+  } else if (banda === "RUSH") {
+    rolesAsignar = ["1518491812593926274", "1516258974163402862"];
+  } else if (banda === "BLUEBERRY") {
+    rolesAsignar = ["1525397550046122034", "1516258974163402862"];
+  }
 
   const rolesOk = [], rolesFail = [];
   for (const rolId of rolesAsignar) {
@@ -369,12 +380,12 @@ async function handleBandaButton(interaction, client) {
     await target.send({ embeds: [buildDMEmbed(target)], components: [row] });
   } catch(e) { console.error("[NUEVO] Error DM:", e.message); }
 
-  // Plantilla simple en ticket
+  // Plantilla en ticket
   const ticketPostulacion = guild.channels.cache.find(ch => ch.topic?.includes(`postulacionUser:${target.id}`));
   if (ticketPostulacion) {
     await ticketPostulacion.send({
-      embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle(`✅ Nuevo miembro aprobado — Limpio (${banda})`)
-        .setDescription(`**Usuario:** ${target}\n**Atendió (!nuevo):** <@${solicitud.atendioId}>\n**Aprobó:** ${interaction.user}\n**Banda:** ${banda}\n\n🎭 Roles asignados: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}`)
+      embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle(`✅ Nuevo miembro aprobado (${banda})`)
+        .setDescription(`**Usuario:** ${target}\n**Atendió (!nuevo):** <@${solicitud.atendioId}>\n**Aprobó:** ${interaction.user}\n**Tipo:** ${banda}\n\n🎭 Roles: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}`)
         .setTimestamp()]
     });
   }
@@ -382,27 +393,22 @@ async function handleBandaButton(interaction, client) {
   // Plantilla con foto en canal SS
   const { fotoAdjunta, fotoEmbedRef } = solicitud;
   await interaction.channel.send({
-    embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle(`✅ Nuevo miembro aprobado — Limpio (${banda})`)
-      .setDescription(`**Usuario:** ${target}\n**Atendió (!nuevo):** <@${solicitud.atendioId}>\n**Aprobó:** ${interaction.user}\n**SS realizada por:** ${interaction.user}\n**Banda:** ${banda}\n\n🎭 Roles: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}`)
+    embeds: [new EmbedBuilder().setColor(0xFFD700).setTitle(`✅ Nuevo miembro aprobado (${banda})`)
+      .setDescription(`**Usuario:** ${target}\n**Atendió (!nuevo):** <@${solicitud.atendioId}>\n**Aprobó:** ${interaction.user}\n**Tipo:** ${banda}\n\n🎭 Roles: ${rolesOk.map(r=>`<@&${r}>`).join(", ")}`)
       .setImage(fotoEmbedRef).setTimestamp()],
     files: fotoAdjunta || []
   });
 
-  // Tutorial en canal original
+  // Bienvenida en canal original
   try {
     const canalComando = await client.channels.fetch(solicitud.canalComandoId);
-    const videoAttachment = await getTutorialVideoAttachment(client);
-    const rowTutorial = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`tutorial_claro:${target.id}`).setLabel("✅ Todo claro").setStyle(ButtonStyle.Success),
-      new ButtonBuilder().setCustomId(`tutorial_dudas:${target.id}`).setLabel("❓ Tengo dudas").setStyle(ButtonStyle.Danger)
-    );
     const embedTutorial = new EmbedBuilder().setColor(0xFFD700)
       .setTitle("🎉 ¡Bienvenido/a a PARIS.COM!")
       .setDescription(`${target} **¡Ya tienes tu rol, bienvenido!**\n\nEstás oficialmente dentro de la comunidad. Lee los canales de información y disfruta.`)
       .setImage("https://cdn.discordapp.com/attachments/1516259320357064826/1525313157650845847/ChatGPT_Image_10_jul_2026_07_49_23_p.m..png?ex=6a5a2e53&is=6a58dcd3&hm=60e0fec4ddedc2549efeebe4da81ff993cfe946fab643e13dcf51e9e18e58fda&")
       .setTimestamp();
     await canalComando.send({ embeds: [embedTutorial] });
-  } catch(e) { console.error("[NUEVO] Error tutorial:", e.message); }
+  } catch(e) { console.error("[NUEVO] Error bienvenida:", e.message); }
 }
 
 module.exports = { handleNuevo, handleNuevoButton, handleTutorialButton, handleNuevoFotoSS, handleSSResultButton, handleBandaButton };
