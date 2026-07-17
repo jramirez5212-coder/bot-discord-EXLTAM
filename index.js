@@ -280,13 +280,12 @@ async function createResultTicket(userId, status, staffUser, banda = null) {
     const user    = await client.users.fetch(userId).catch(() => null);
     if (!user) return null;
     const approved = status === "aprobada";
-    const bandaLabel = banda ? `-${banda.toLowerCase()}` : "";
 
     const ch = await guild.channels.create({
-      name: `${approved?"aprobado":"rechazado"}${bandaLabel}-${cleanName(user.username)}`,
+      name: `${approved?"aprobado":"rechazado"}-${cleanName(user.username)}`,
       type: ChannelType.GuildText,
       parent: approved ? config.categoriaAprobadosId : config.categoriaRechazadosId,
-      topic: `postulacionUser:${userId} | status:${status} | staff:${staffUser.id} | banda:${banda||"?"} | createdAt:${Date.now()}`,
+      topic: `postulacionUser:${userId} | status:${status} | staff:${staffUser.id} | createdAt:${Date.now()}`,
       permissionOverwrites: [
         {id:guild.roles.everyone.id, deny:[PermissionFlagsBits.ViewChannel]},
         {id:userId, allow:[PermissionFlagsBits.ViewChannel,PermissionFlagsBits.SendMessages,PermissionFlagsBits.ReadMessageHistory,PermissionFlagsBits.AttachFiles,PermissionFlagsBits.EmbedLinks]},
@@ -297,23 +296,22 @@ async function createResultTicket(userId, status, staffUser, banda = null) {
     const embed = new EmbedBuilder()
       .setColor(approved ? COLOR : 0xff3c3c)
       .setAuthor({name:"PARIS.COM Postulaciones", iconURL:config.logoUrl})
-      .setTitle(approved ? "`✅ **POSTULACIÓN** Aprobada`" : "❌ **POSTULACIÓN** Rechazada")
+      .setTitle(approved ? "✅ **POSTULACIÓN** Aprobada" : "❌ **POSTULACIÓN** Rechazada")
       .setDescription(approved
-        ? `Tu **POSTULACIÓN** fue **aprobada** por ${staffUser}.\n\nFuiste asignado a la banda **${banda || "?"}**.\n\nAhora pasas a la **segunda etapa del proceso**, la cual se realizará por **llamada**.\n\nCuando el staff te notifique, deberás entrar a la **sala de espera** para continuar con la entrevista.`
+        ? `Tu **POSTULACIÓN** fue **aprobada** por ${staffUser}.\n\nAhora pasas a la **segunda etapa del proceso**, la cual se realizará por **llamada**.\n\nCuando el staff te notifique, deberás entrar a la **sala de espera** para continuar con la entrevista.`
         : `Tu **POSTULACIÓN** fue **rechazada** por ${staffUser}.\n\nPuedes usar este ticket para preguntar el motivo o apelar la decisión de forma respetuosa.`
       )
       .addFields(
         {name: "👤 Solicitante",  value: `<@${userId}>`,      inline: true},
         {name: "⚖️ Revisado por", value: `${staffUser}`,      inline: true},
         {name: "📊 Estado",       value: approved ? "`Aprobada`" : "`Rechazada`", inline: true},
-        ...(banda && approved ? [{name: "🎯 Banda", value: `**${banda}**`, inline: true}] : []),
       )
       .setThumbnail(config.logoUrl)
       .setFooter({text:config.guildName, iconURL:config.logoUrl})
       .setTimestamp();
 
     await ch.send({content:`<@${userId}> <@&${config.staffBandasRoleId}>`, embeds:[embed], components:[resultTicketButtons()]});
-    await botLog(approved?"✅":"❌", `Ticket ${approved?"aprobado":"rechazado"} creado`, `Usuario: <@${userId}> | Staff: ${staffUser} | Banda: ${banda||"?"} | Canal: ${ch}`, "auto");
+    await botLog(approved?"✅":"❌", `Ticket ${approved?"aprobado":"rechazado"} creado`, `Usuario: <@${userId}> | Staff: ${staffUser} | Canal: ${ch}`, "auto");
     return ch;
   } catch(e) { console.log("❌", e.message); return null; }
 }
